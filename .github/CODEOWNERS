@@ -1,0 +1,10 @@
+# B2: activate after replacing examples with actual GitHub usernames with write access.
+# Do not enable required Code Owner review until real entries are committed.
+# /frontend/ @ilya-login @leonid-login
+# /backend/app/ @ruslana-login @varvara-login
+# /backend/migrations/ @ruslana-login @varvara-login
+# /backend/renderer/ @andrey-login @tatyana-login
+# /tests/ @tatyana-login @leonid-login
+# /infra/ @varvara-login @ruslana-login
+# /compose.yaml @varvara-login @ruslana-login
+# /.github/ @varvara-login @ruslana-login

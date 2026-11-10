@@ -1,0 +1,27 @@
+# Local configuration and user media
+.env
+.env.*
+!.env.example
+data/
+*.sqlite*
+*.db
+*.mp3
+*.wav
+*.mp4
+*.ass
+# Build and tools
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage/
+playwright-report/
+test-results/
+tmp/
+.DS_Store
+Thumbs.db
