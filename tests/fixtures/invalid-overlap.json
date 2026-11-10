@@ -1,0 +1,8 @@
+{
+  "style": "brat",
+  "duration_ms": 10000,
+  "lines": [
+    {"id": "line-1", "text": "Первый интервал", "start_ms": 1000, "end_ms": 3000},
+    {"id": "line-2", "text": "Пересечение должно вызвать ошибку", "start_ms": 2500, "end_ms": 4000}
+  ]
+}

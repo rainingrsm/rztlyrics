@@ -1,0 +1,56 @@
+# B2: local scaffold. Public deployment/HTTPS is a separate task.
+x-backend: &backend
+  build:
+    context: .
+    dockerfile: infra/backend.Dockerfile
+  image: rztlyrics-backend:local
+  environment: &backend-env
+    DATA_DIR: /data
+    DATABASE_URL: sqlite:////data/rztlyrics.db
+    REDIS_URL: redis://redis:6379/0
+    APP_VERSION: ${APP_VERSION:-0.0.0}
+    COMMIT_SHA: ${COMMIT_SHA:-unknown}
+    SESSION_COOKIE_SECURE: "false"
+  volumes:
+    - project-data:/data
+
+services:
+  api:
+    <<: *backend
+    command: ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", ".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  worker:
+    <<: *backend
+    command: ["uv", "run", "--no-sync", "python", "-m", "app.tasks.worker"]
+    depends_on:
+      redis:
+        condition: service_healthy
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  web:
+    build:
+      context: .
+      dockerfile: infra/web.Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  project-data:
+  redis-data:
