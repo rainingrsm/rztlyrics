@@ -3,13 +3,19 @@
 from renderer.models import RenderSpec
 
 
-def format_timestamp(milliseconds: int) -> str:
-    """TODO A1: целые мс -> H:MM:SS.cc с согласованным округлением.
+def format_timestamp(ms: int) -> str:
+    """Перевести миллисекунды в H:MM:SS.cc, отбрасывая остаток меньше 10 мс."""
+    if type(ms) is not int:
+        raise TypeError("Время должно быть целым числом миллисекунд")
+    if ms < 0:
+        raise ValueError("Время не может быть отрицательным")
 
-    Проверить границы секунды/минуты и соседние интервалы. После округления
-    не должно возникать пересечения или нулевой длительности.
-    """
-    raise NotImplementedError("A1: реализовать сериализацию времени ASS")
+    cs = ms // 10  # округляем миллисекунды до сотых
+    seconds, cs = divmod(cs, 100)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+
+    return f"{hours}:{minutes:02}:{seconds:02}.{cs:02}"
 
 
 def escape_text(text: str) -> str:
