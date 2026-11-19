@@ -1,6 +1,30 @@
 import pytest
 
-from renderer.ass import format_timestamp
+from renderer.ass import escape_text, format_timestamp
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Привет, мир!", "Привет, мир!"),
+        ('Он сказал: "Привет"', 'Он сказал: "Привет"'),
+        ("", ""),
+        ("  два  слова  ", "  два  слова  "),
+        ("{припев}", r"\{припев\}"),
+        (r"{\b1}Привет", "\\{\\\u2060b1\\}Привет"),
+        (r"Это \N обычный текст", "Это \\\u2060N обычный текст"),
+        ("Первая строка\nВторая строка", r"Первая строка\NВторая строка"),
+        ("а\r\nб\rв", r"а\Nб\Nв"),
+    ],
+)
+def test_escape_text(text, expected):
+    assert escape_text(text) == expected
+
+
+@pytest.mark.parametrize("value", [None, 123])
+def test_escape_text_rejects_non_string(value):
+    with pytest.raises(TypeError):
+        escape_text(value)
 
 
 @pytest.mark.parametrize(

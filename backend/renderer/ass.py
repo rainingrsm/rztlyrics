@@ -10,7 +10,7 @@ def format_timestamp(ms: int) -> str:
     if ms < 0:
         raise ValueError("Время не может быть отрицательным")
 
-    cs = ms // 10  # округляем миллисекунды до сотых
+    cs = ms // 10  # отбрасываем остаток меньше 10 мс
     seconds, cs = divmod(cs, 100)
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
@@ -19,12 +19,13 @@ def format_timestamp(ms: int) -> str:
 
 
 def escape_text(text: str) -> str:
-    """TODO A1: сериализовать обычный текст без выполнения ASS-тегов.
+    """Подготовить пользовательский текст для поля Text в ASS."""
+    if not isinstance(text, str):
+        raise TypeError("Текст должен быть строкой")
 
-    Проверить кириллицу, фигурные скобки, обратный слеш, кавычки и переносы.
-    Не подставлять текст в команду оболочки или строку FFmpeg-фильтра.
-    """
-    raise NotImplementedError("A1: реализовать безопасный текст ASS")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Невидимый WORD JOINER отделяет буквальный слеш от следующего символа.
+    return text.translate(str.maketrans({"\\": "\\\u2060", "{": r"\{", "}": r"\}", "\n": r"\N"}))
 
 
 def wrap_text(text: str, max_width_px: int, font_size: int) -> str:
