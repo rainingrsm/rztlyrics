@@ -1,6 +1,33 @@
 import pytest
 
-from renderer.ass import escape_text, format_timestamp
+from renderer.ass import escape_text, format_timestamp, wrap_text
+
+
+def test_wrap_preserves_short_text_and_explicit_breaks():
+    assert wrap_text("Привет, 123\r\n\nмир", 500, 32) == "Привет, 123\n\nмир"
+
+
+def test_wrap_prefers_words():
+    assert wrap_text("слово слово", 120, 32) == "слово\nслово"
+
+
+def test_wrap_measures_glyphs():
+    assert wrap_text("iiii", 50, 32) == "iiii"
+    assert wrap_text("ШШШШ", 50, 32) == "Ш\nШ\nШ\nШ"
+
+
+def test_wrap_long_word_within_frame():
+    text = "Ж" * 120
+    lines = wrap_text(text, 10000, 48).splitlines()
+    assert len(lines) > 1
+    assert "".join(lines) == text
+    assert all(len(line) < 24 for line in lines)
+
+
+@pytest.mark.parametrize(("text", "width"), [("Ж", 1), ("строка\n" * 30, 500)])
+def test_wrap_reports_overflow(text, width):
+    with pytest.raises(ValueError, match="не помещается"):
+        wrap_text(text, width, 32)
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,12 @@
 """A1: будущий сериализатор ASS; пользовательский текст не является ASS-кодом."""
 
+from PIL import ImageFont
+
 from renderer.models import RenderSpec
+
+FONT_NAME = "DejaVu Sans"
+FRAME_WIDTH, FRAME_HEIGHT = 1280, 720
+MARGIN_X, MARGIN_Y = 64, 36
 
 
 def format_timestamp(ms: int) -> str:
@@ -29,12 +35,42 @@ def escape_text(text: str) -> str:
 
 
 def wrap_text(text: str, max_width_px: int, font_size: int) -> str:
-    """TODO A1: переносить текст по измеренной ширине выбранного шрифта.
+    """Перенести обычный текст до вызова escape_text, сохранив явные переносы."""
+    if not isinstance(text, str):
+        raise TypeError("Текст должен быть строкой")
+    if type(max_width_px) is not int or type(font_size) is not int:
+        raise TypeError("Ширина и размер шрифта должны быть целыми числами")
+    if max_width_px <= 0 or font_size <= 0:
+        raise ValueError("Ширина и размер шрифта должны быть положительными")
 
-    A2 проверяет 120 символов и длинное слово: текст не обрезается.
-    Если текст нельзя разместить в безопасной области, вернуть понятную ошибку.
-    """
-    raise NotImplementedError("A1: реализовать перенос строк")
+    font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+    width = min(max_width_px, FRAME_WIDTH - 2 * MARGIN_X)
+    max_lines = (FRAME_HEIGHT - 2 * MARGIN_Y) // sum(font.getmetrics())
+    lines = []
+    for paragraph in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        while True:
+            if len(lines) >= max_lines:
+                raise ValueError("Текст не помещается по высоте в безопасную область кадра")
+            for end in range(1, len(paragraph) + 1):
+                left, _, right, _ = font.getbbox(paragraph[:end])
+                if right - left > width:
+                    break
+            else:
+                lines.append(paragraph)
+                break
+
+            if end == 1:
+                raise ValueError("Символ не помещается по ширине в безопасную область кадра")
+            space = paragraph.rfind(" ", 1, end)
+            if space > 0:
+                lines.append(paragraph[:space])
+                paragraph = paragraph[space + 1:]
+            else:
+                lines.append(paragraph[:end - 1])
+                paragraph = paragraph[end - 1:]
+            if not paragraph:
+                break
+    return "\n".join(lines)
 
 
 def build_ass(spec: RenderSpec) -> str:
