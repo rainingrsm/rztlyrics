@@ -1,6 +1,8 @@
 import pytest
 
-from renderer.ass import escape_text, format_timestamp, wrap_text
+from renderer.ass import build_ass, escape_text, format_timestamp, wrap_text
+from renderer.models import LyricLine, RenderSpec
+from renderer.validation import RenderValidationError
 
 
 def test_wrap_preserves_short_text_and_explicit_breaks():
@@ -89,3 +91,67 @@ def test_preserves_minimum_interval():
     """После преобразования интервал 100 мс остаётся длиной 100 мс."""
     assert format_timestamp(1001) == "0:00:01.00"
     assert format_timestamp(1101) == "0:00:01.10"
+
+
+def test_build_ass_header_and_style():
+    spec = RenderSpec("brat", 5000, (LyricLine("1", "Привет", 0, 1000),))
+    rows = build_ass(spec).splitlines()
+
+    assert rows[:5] == [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        "PlayResX: 1280",
+        "PlayResY: 720",
+        "WrapStyle: 2",
+    ]
+    index = rows.index("[V4+ Styles]")
+    fields = rows[index + 1].removeprefix("Format: ").split(", ")
+    values = rows[index + 2].removeprefix("Style: ").split(",")
+    style = dict(zip(fields, values, strict=True))
+    assert style["Name"] == "Default"
+    assert style["Fontname"] == "DejaVu Sans"
+    assert style["PrimaryColour"] == "&H00000000"
+    assert style["Alignment"] == "5"
+    assert (style["MarginL"], style["MarginR"], style["MarginV"]) == ("64", "64", "36")
+    assert rows[rows.index("[Events]") + 1] == (
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+    )
+
+
+def test_build_ass_adjacent_lines_and_pause():
+    spec = RenderSpec(
+        "brat",
+        5000,
+        (
+            LyricLine("1", "Раз", 0, 1234),
+            LyricLine("2", "Два", 1234, 2500),
+            LyricLine("3", "Три, четыре", 3000, 5000),
+        ),
+    )
+    events = [row for row in build_ass(spec).splitlines() if row.startswith("Dialogue:")]
+    assert events == [
+        "Dialogue: 0,0:00:00.00,0:00:01.23,Default,,0,0,0,,Раз",
+        "Dialogue: 0,0:00:01.23,0:00:02.50,Default,,0,0,0,,Два",
+        "Dialogue: 0,0:00:03.00,0:00:05.00,Default,,0,0,0,,Три, четыре",
+    ]
+
+
+def test_build_ass_wraps_and_escapes_in_one_event():
+    word = "Ж" * 20
+    raw_text = word + " " + word + "\n" + r"{\b1} и \N"
+    spec = RenderSpec("brat", 5000, (LyricLine("1", raw_text, 1000, 2500),))
+    rows = build_ass(spec).splitlines()
+    assert rows[rows.index("[Events]") + 2 :] == [
+        f"Dialogue: 0,0:00:01.00,0:00:02.50,Default,,0,0,0,,{word}"
+        + r"\N"
+        + word
+        + r"\N"
+        + "\\{\\\u2060b1\\} и \\\u2060N"
+    ]
+
+
+def test_build_ass_rejects_invalid_spec():
+    spec = RenderSpec("brat", 5000, (LyricLine("1", "За пределами", 4000, 6000),))
+    with pytest.raises(RenderValidationError) as error:
+        build_ass(spec)
+    assert error.value.field == "lines[0].end_ms"

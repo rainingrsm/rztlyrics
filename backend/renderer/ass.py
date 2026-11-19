@@ -1,10 +1,12 @@
-"""A1: будущий сериализатор ASS; пользовательский текст не является ASS-кодом."""
+"""Сборка ASS-субтитров из строк песни и их таймингов."""
 
 from PIL import ImageFont
 
 from renderer.models import RenderSpec
+from renderer.validation import validate_spec
 
 FONT_NAME = "DejaVu Sans"
+FONT_SIZE = 48
 FRAME_WIDTH, FRAME_HEIGHT = 1280, 720
 MARGIN_X, MARGIN_Y = 64, 36
 
@@ -64,20 +66,45 @@ def wrap_text(text: str, max_width_px: int, font_size: int) -> str:
             space = paragraph.rfind(" ", 1, end)
             if space > 0:
                 lines.append(paragraph[:space])
-                paragraph = paragraph[space + 1:]
+                paragraph = paragraph[space + 1 :]
             else:
-                lines.append(paragraph[:end - 1])
-                paragraph = paragraph[end - 1:]
+                lines.append(paragraph[: end - 1])
+                paragraph = paragraph[end - 1 :]
             if not paragraph:
                 break
     return "\n".join(lines)
 
 
 def build_ass(spec: RenderSpec) -> str:
-    """TODO A1: собрать UTF-8 ASS для 1280x720, чёрного текста по центру.
+    """Собрать текст ASS-документа с одним событием на строку песни."""
+    validate_spec(spec)
 
-    Вход сначала проверить validate_spec. Использовать закреплённый шрифт
-    с кириллицей, интервалы [start,end), в паузах показывать только фон.
-    A2 проверяет соседние строки, паузы и попадание текста в безопасные поля.
-    """
-    raise NotImplementedError("A1: реализовать ASS-документ")
+    rows = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        f"PlayResX: {FRAME_WIDTH}",
+        f"PlayResY: {FRAME_HEIGHT}",
+        "WrapStyle: 2",
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
+        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+        "Alignment, MarginL, MarginR, MarginV, Encoding",
+        f"Style: Default,{FONT_NAME},{FONT_SIZE},&H00000000,&H00000000,"
+        "&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,"
+        f"5,{MARGIN_X},{MARGIN_X},{MARGIN_Y},1",
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+
+    max_width = FRAME_WIDTH - 2 * MARGIN_X
+    for line in spec.lines:
+        start = format_timestamp(line.start_ms)
+        end = format_timestamp(line.end_ms)
+        wrapped = wrap_text(line.text, max_width, FONT_SIZE)
+        text = escape_text(wrapped)
+        rows.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}")
+
+    return "\n".join(rows)
