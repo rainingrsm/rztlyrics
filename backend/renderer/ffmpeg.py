@@ -35,6 +35,7 @@ class MediaInfo:
     height: int | None
     container_format: str | None = None
 
+
 def probe_media(path: Path, timeout_seconds: int = 15) -> MediaInfo:
     """Получить информацию о медиафайле через ffprobe."""
 
@@ -46,10 +47,12 @@ def probe_media(path: Path, timeout_seconds: int = 15) -> MediaInfo:
 
     command = [
         "ffprobe",
-        "-v", "error",
+        "-v",
+        "error",
         "-show_entries",
         "format=duration,format_name:stream=codec_type,codec_name,width,height,duration",
-        "-of", "json",
+        "-of",
+        "json",
         str(path),
     ]
 
@@ -90,9 +93,7 @@ def probe_media(path: Path, timeout_seconds: int = 15) -> MediaInfo:
 
     if duration_value is None:
         durations = [
-            stream.get("duration")
-            for stream in streams
-            if stream.get("duration") is not None
+            stream.get("duration") for stream in streams if stream.get("duration") is not None
         ]
         duration_value = max(durations, key=Decimal) if durations else None
 
@@ -121,43 +122,28 @@ def probe_media(path: Path, timeout_seconds: int = 15) -> MediaInfo:
         container_format=data.get("format", {}).get("format_name"),
     )
 
+
 def validate_audio(path: Path) -> MediaInfo:
     """Проверить аудиофайл перед загрузкой."""
 
     if not path.is_file():
-        raise AudioValidationError(
-            "file_not_found",
-            "Аудиофайл не найден"
-        )
+        raise AudioValidationError("file_not_found", "Аудиофайл не найден")
 
     if path.stat().st_size > MAX_AUDIO_BYTES:
-        raise AudioValidationError(
-            "file_too_large",
-            "Размер аудиофайла превышает допустимый"
-        )
+        raise AudioValidationError("file_too_large", "Размер аудиофайла превышает допустимый")
 
     media = probe_media(path)
 
     if media.audio_codec is None:
-        raise AudioValidationError(
-            "audio_stream_missing",
-            "В файле отсутствует аудиопоток"
-        )
+        raise AudioValidationError("audio_stream_missing", "В файле отсутствует аудиопоток")
 
     if media.container_format not in ("mp3", "wav"):
-        raise AudioValidationError(
-            "unsupported_format",
-            "Поддерживаются только MP3 и WAV"
-        )
+        raise AudioValidationError("unsupported_format", "Поддерживаются только MP3 и WAV")
 
     if not MIN_DURATION_MS <= media.duration_ms <= MAX_DURATION_MS:
-        raise AudioValidationError(
-            "invalid_duration",
-            "Длительность должна быть от 5 до 60 секунд"
-        )
+        raise AudioValidationError("invalid_duration", "Длительность должна быть от 5 до 60 секунд")
 
     return media
-
 
 
 def build_command(spec: RenderSpec, audio: Path, subtitles: Path, output: Path) -> list[str]:
