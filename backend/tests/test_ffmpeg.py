@@ -70,3 +70,22 @@ def test_probe_media_raises_error_on_timeout(tmp_path, monkeypatch):
 
     with pytest.raises(ffmpeg.MediaProbeError):
         ffmpeg.probe_media(audio_file)
+
+def test_validate_audio_raises_error_when_file_not_found(tmp_path):
+    audio_file = tmp_path / "missing.mp3"
+
+    with pytest.raises(ffmpeg.AudioValidationError) as error:
+        ffmpeg.validate_audio(audio_file)
+
+    assert error.value.code == "file_not_found"
+
+def test_validate_audio_raises_error_when_file_too_large(tmp_path, monkeypatch):
+    audio_file = tmp_path / "large.mp3"
+    audio_file.write_bytes(b"x" * 11)
+
+    monkeypatch.setattr(ffmpeg, "MAX_AUDIO_BYTES", 10)
+
+    with pytest.raises(ffmpeg.AudioValidationError) as error:
+        ffmpeg.validate_audio(audio_file)
+
+    assert error.value.code == "file_too_large"
