@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import json
-import math
 import subprocess
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
 
 from renderer.models import RenderSpec
 from renderer.validation import MAX_AUDIO_BYTES, MAX_DURATION_MS, MIN_DURATION_MS

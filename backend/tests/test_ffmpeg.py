@@ -1,6 +1,7 @@
 import json
-import pytest
 import subprocess
+
+import pytest
 
 from renderer import ffmpeg
 
