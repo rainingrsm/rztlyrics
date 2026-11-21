@@ -59,7 +59,6 @@ rztlyrics/
   infra/                     Dockerfile, Caddyfile
   .github/                   CI, шаблоны issue/PR, CODEOWNERS
   docs/tasks/                подробные задания по функциям
-  scripts/                   воспроизводимая сборка PDF
   output/pdf/                план команды
   compose.yaml               локальные web/api/worker/redis
 ```
