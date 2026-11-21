@@ -21,7 +21,7 @@ git fetch origin
 git switch -c codex/bootstrap-scaffold
 git add .dockerignore .editorconfig .env.example .gitattributes .gitignore .nvmrc .python-version
 git add README.MD CONTRIBUTING.md LICENSE.md backend frontend docs
-git add infra compose.yaml .github tests scripts output/pdf
+git add infra compose.yaml .github tests output/pdf
 git diff --staged --stat
 git diff --staged
 git commit -m "chore: add RZT project scaffold and team plan"
