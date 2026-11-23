@@ -68,7 +68,7 @@ function ProjectEditor({ projectId }: { projectId: string }) {
       <label htmlFor="lyrics-input">Текст песни — каждая строка отдельно</label>
       <textarea id="lyrics-input" rows={5} value={state.draft.lines.map((line) => line.text).join('\n')} readOnly />
       <button type="button" disabled>Разбить на строки</button>
-      <TimingTable />
+      <TimingTable lines={state.draft.lines} />
       <div className="actions"><button type="button" disabled>Сохранить</button><button type="button" disabled>Сгенерировать видео</button></div>
     </>
   );
