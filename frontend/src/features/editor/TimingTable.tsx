@@ -1,12 +1,24 @@
-/** F2: таблица строк. TODO: поля текста/начала/конца, удаление, «взять время плеера».
- * Вход будущего компонента: lines, durationMs, onChange. UI использует секунды, DTO — ms.
- * Приёмка: null отображается пустым; ошибки у конкретной строки; смежные интервалы допустимы.
- */
-export function TimingTable() {
+import type { LyricLine } from '../../shared/types/project';
+import { msToSeconds } from './time';
+
+export function TimingTable({ lines }: { lines: LyricLine[] }) {
   return (
     <div className="table-scroll">
-      <table><caption>Ручная разметка</caption><thead><tr><th>Строка</th><th>Начало, с</th><th>Конец, с</th><th>Действия</th></tr></thead>
-        <tbody><tr><td colSpan={4}>Строки появятся после подключения редактора.</td></tr></tbody>
+      <table>
+        <caption>Ручная разметка</caption>
+        <thead>
+          <tr><th scope="col">Строка</th><th scope="col">Начало, с</th><th scope="col">Конец, с</th></tr>
+        </thead>
+        <tbody>
+          {lines.length === 0 && <tr><td colSpan={3}>Строк пока нет.</td></tr>}
+          {lines.map((line) => (
+            <tr key={line.id}>
+              <td>{line.text}</td>
+              <td>{msToSeconds(line.start_ms) || '—'}</td>
+              <td>{msToSeconds(line.end_ms) || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
       </table>
     </div>
   );

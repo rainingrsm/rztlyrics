@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError } from '../../shared/api/client';
 import { getProject } from '../../shared/api/projects';
+import { LIMITS } from '../../shared/limits';
 import type { LyricsDraft, Project } from '../../shared/types/project';
+import { FieldError } from '../../shared/ui/FieldError';
+import { splitLyrics } from './lyrics';
 import { TimingTable } from './TimingTable';
 
 type EditorState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'loaded'; project: Project; draft: LyricsDraft; dirty: boolean };
+  | { status: 'loaded'; project: Project; draft: LyricsDraft; dirty: boolean; lyricsInput: string };
 
 export function EditorPage() {
   const { id } = useParams();
@@ -28,6 +31,7 @@ export function EditorPage() {
 
 function ProjectEditor({ projectId }: { projectId: string }) {
   const [state, setState] = useState<EditorState>({ status: 'loading' });
+  const [lyricsError, setLyricsError] = useState<string>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -40,6 +44,7 @@ function ProjectEditor({ projectId }: { projectId: string }) {
         project,
         draft: { style: project.style, lines: project.lines.map((line) => ({ ...line })) },
         dirty: false,
+        lyricsInput: project.lines.map((line) => line.text).join('\n'),
       });
     }, (error: unknown) => {
       if (controller.signal.aborted) return;
@@ -63,12 +68,48 @@ function ProjectEditor({ projectId }: { projectId: string }) {
     );
   }
 
+  function handleSplitLyrics() {
+    if (state.status !== 'loaded') return;
+
+    const lines = splitLyrics(state.lyricsInput);
+    if (lines.length === 0) {
+      setLyricsError('Введите хотя бы одну непустую строку.');
+      return;
+    }
+    if (lines.length > LIMITS.maxLines) {
+      setLyricsError(`Введите не больше ${LIMITS.maxLines} строк.`);
+      return;
+    }
+    const tooLongIndex = lines.findIndex((line) => [...line.text].length > LIMITS.maxTextLength);
+    if (tooLongIndex !== -1) {
+      setLyricsError(`Строка ${tooLongIndex + 1} должна содержать не больше ${LIMITS.maxTextLength} символов.`);
+      return;
+    }
+
+    const hasTimings = state.draft.lines.some((line) => line.start_ms !== null || line.end_ms !== null);
+    if (hasTimings && !window.confirm('Разбить текст заново? Текущие тайминги будут удалены.')) return;
+
+    setLyricsError(undefined);
+    setState({ ...state, draft: { ...state.draft, lines }, dirty: true });
+  }
+
   return (
     <>
       <label htmlFor="lyrics-input">Текст песни — каждая строка отдельно</label>
-      <textarea id="lyrics-input" rows={5} value={state.draft.lines.map((line) => line.text).join('\n')} readOnly />
-      <button type="button" disabled>Разбить на строки</button>
-      <TimingTable />
+      <textarea
+        id="lyrics-input"
+        rows={5}
+        value={state.lyricsInput}
+        aria-invalid={Boolean(lyricsError)}
+        aria-describedby={lyricsError ? 'lyrics-error' : undefined}
+        onChange={(event) => {
+          setLyricsError(undefined);
+          setState({ ...state, lyricsInput: event.target.value });
+        }}
+      />
+      <FieldError id="lyrics-error" message={lyricsError} />
+      <button type="button" onClick={handleSplitLyrics}>Разбить на строки</button>
+      <TimingTable lines={state.draft.lines} />
       <div className="actions"><button type="button" disabled>Сохранить</button><button type="button" disabled>Сгенерировать видео</button></div>
     </>
   );
