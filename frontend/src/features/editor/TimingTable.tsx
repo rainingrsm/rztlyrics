@@ -5,11 +5,12 @@ import { TimingField } from './TimingField';
 import { updateLine } from './updateLine';
 import type { TimingIssue } from './validation';
 
-export function TimingTable({ lines, durationMs, currentTimeMs, issues, onChange }: {
+export function TimingTable({ lines, durationMs, currentTimeMs, issues, onTimingInput, onChange }: {
   lines: LyricLine[];
   durationMs: number | null;
   currentTimeMs: number | null;
   issues: TimingIssue[];
+  onTimingInput: () => void;
   onChange: (lines: LyricLine[]) => void;
 }) {
   const issuesByField = new Map(issues.map(({ field, message }) => [field, message]));
@@ -53,6 +54,7 @@ export function TimingTable({ lines, durationMs, currentTimeMs, issues, onChange
                     valueMs={line.start_ms}
                     currentTimeMs={currentTimeMs}
                     issue={startError}
+                    onInput={onTimingInput}
                     onChange={(start_ms) => onChange(updateLine(lines, line.id, { start_ms }))}
                   />
                 </td>
@@ -63,6 +65,7 @@ export function TimingTable({ lines, durationMs, currentTimeMs, issues, onChange
                     valueMs={line.end_ms}
                     currentTimeMs={currentTimeMs}
                     issue={issuesByField.get(`${field}.end_ms`)}
+                    onInput={onTimingInput}
                     onChange={(end_ms) => onChange(updateLine(lines, line.id, { end_ms }))}
                   />
                 </td>
