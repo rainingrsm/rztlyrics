@@ -22,10 +22,15 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
         if (error && typeof error === 'object' && 'code' in error && 'message' in error
           && typeof error.code === 'string' && typeof error.message === 'string') {
           details = { code: error.code, message: error.message };
-          if ('field' in error && typeof error.field === 'string') details.field = error.field;
+          if ('field' in error && (error.field === null || typeof error.field === 'string')) {
+            details.field = error.field;
+          }
         }
       }
-    } catch { /* Прокси может вернуть HTML; сохраняем понятную HTTP-ошибку. */ }
+    } catch {
+      // A proxy may return HTML, but cancellation should still reach the caller.
+      options.signal?.throwIfAborted();
+    }
     throw new ApiError(response.status, details);
   }
   return response.json() as Promise<T>;
