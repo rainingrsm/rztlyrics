@@ -5,7 +5,9 @@ import { getProject } from '../../shared/api/projects';
 import { LIMITS } from '../../shared/limits';
 import type { LyricsDraft, Project } from '../../shared/types/project';
 import { FieldError } from '../../shared/ui/FieldError';
+import { AudioPlayer } from './AudioPlayer';
 import { splitLyrics } from './lyrics';
+import { msToSeconds } from './time';
 import { TimingTable } from './TimingTable';
 
 type EditorState =
@@ -32,6 +34,7 @@ export function EditorPage() {
 function ProjectEditor({ projectId }: { projectId: string }) {
   const [state, setState] = useState<EditorState>({ status: 'loading' });
   const [lyricsError, setLyricsError] = useState<string>();
+  const [currentTimeMs, setCurrentTimeMs] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -95,6 +98,8 @@ function ProjectEditor({ projectId }: { projectId: string }) {
 
   return (
     <>
+      <AudioPlayer audioUrl={state.project.audio_url} onTimeChange={setCurrentTimeMs} />
+      {currentTimeMs !== null && <p className="muted">Позиция для разметки — {msToSeconds(currentTimeMs)} с</p>}
       <label htmlFor="lyrics-input">Текст песни — каждая строка отдельно</label>
       <textarea
         id="lyrics-input"
