@@ -1,18 +1,21 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { FieldError } from '../../shared/ui/FieldError';
 import { msToSeconds, secondsToMs } from './time';
 
 interface TimingFieldProps {
+  id: string;
   label: string;
   valueMs: number | null;
   currentTimeMs: number | null;
+  issue?: string;
   onChange: (milliseconds: number | null) => void;
 }
 
-export function TimingField({ label, valueMs, currentTimeMs, onChange }: TimingFieldProps) {
-  const errorId = useId();
+export function TimingField({ id, label, valueMs, currentTimeMs, issue, onChange }: TimingFieldProps) {
+  const errorId = `${id}-error`;
   const [input, setInput] = useState<string | null>(null);
   const [error, setError] = useState<string>();
+  const message = error ?? issue;
 
   function applyTime(milliseconds: number | null) {
     setError(undefined);
@@ -37,9 +40,10 @@ export function TimingField({ label, valueMs, currentTimeMs, onChange }: TimingF
   return (
     <>
       <input
+        id={id}
         aria-label={`${label}, с`}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? errorId : undefined}
+        aria-invalid={Boolean(message)}
+        aria-describedby={message ? errorId : undefined}
         inputMode="decimal"
         value={input ?? msToSeconds(valueMs)}
         onChange={(event) => {
@@ -53,7 +57,7 @@ export function TimingField({ label, valueMs, currentTimeMs, onChange }: TimingF
           event.currentTarget.blur();
         }}
       />
-      <FieldError id={errorId} message={error} />
+      <FieldError id={errorId} message={message} />
       <button
         type="button"
         aria-label={`Взять время плеера — ${label.toLowerCase()}`}
