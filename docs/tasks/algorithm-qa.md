@@ -8,10 +8,9 @@ ID с дефисом в backlog/GitHub обозначают более круп�
 Каждый автор тестирует свой код; приёмку функций Татьяны делают Андрей и Руслана.
 Татьяна не утверждает собственные изменения единолично.
 
-Этот документ описывает будущую работу. Уже реализованы dataclass-контракт,
-`validate_spec`, CLI-вход и генератор синтетического WAV. ASS, ffprobe, FFmpeg
-и `render_video` пока завершаются `NotImplementedError`. Успешные проверки
-валидации не означают готовность видео.
+Модели данных, проверки A2 и автономный рендер A1 реализованы. Проверка CLI описана
+в [README renderer](../../backend/renderer/README.md). Приёмку через worker и браузер
+планируют A1, B2 и QA после подключения серверных маршрутов.
 
 ## Порядок и контрольные точки
 
@@ -69,7 +68,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A2.03. `probe_media`
 
-**Файл:** `backend/renderer/ffmpeg.py`. **Статус:** TODO.
+**Файл:** `backend/renderer/ffmpeg.py`. **Статус:** реализована.
 
 - **Вход/выход:** `probe_media(path: Path, timeout_seconds=15) -> MediaInfo`.
 - **Что написать:** список аргументов ffprobe, `shell=False`, JSON-вывод,
@@ -84,7 +83,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A2.04. `validate_audio`
 
-**Файл:** `backend/renderer/ffmpeg.py`. **Статус:** TODO.
+**Файл:** `backend/renderer/ffmpeg.py`. **Статус:** реализована.
 
 - **Вход/выход:** `validate_audio(path: Path) -> MediaInfo` либо понятная ошибка.
 - **Что написать:** проверить размер до ffprobe, реальный контейнер MP3/WAV,
@@ -99,7 +98,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A1.01. `format_timestamp`
 
-**Файл:** `backend/renderer/ass.py`. **Статус:** TODO.
+**Файл:** `backend/renderer/ass.py`. **Статус:** реализована.
 
 - **Вход/выход:** `format_timestamp(milliseconds: int) -> str`, формат `H:MM:SS.cc`.
 - **Что написать:** выбрать и документировать округление миллисекунд до сотых;
@@ -111,7 +110,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A1.02. `escape_text`
 
-**Файл:** `backend/renderer/ass.py`. **Статус:** TODO.
+**Файл:** `backend/renderer/ass.py`. **Статус:** реализована.
 
 - **Вход/выход:** `escape_text(text: str) -> str` для обычного текста ASS.
 - **Что написать:** безопасный сериализатор; скобки и обратные слеши из ввода
@@ -123,7 +122,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A1.03. `wrap_text`
 
-**Файл:** `backend/renderer/ass.py`. **Статус:** TODO.
+**Файл:** `backend/renderer/ass.py`. **Статус:** реализована.
 
 - **Вход/выход:** `wrap_text(text, max_width_px, font_size) -> str`.
 - **Что написать:** перенос по измеренной ширине выбранного шрифта; ограничить
@@ -136,7 +135,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A1.04. `build_ass`
 
-**Файл:** `backend/renderer/ass.py`. **Статус:** TODO.
+**Файл:** `backend/renderer/ass.py`. **Статус:** реализована.
 
 - **Вход/выход:** `build_ass(spec: RenderSpec) -> str`, полный ASS UTF-8.
 - **Что написать:** проверить снимок; заголовок, разрешение, стиль и Dialogue
@@ -149,7 +148,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A1.05. `build_command`
 
-**Файл:** `backend/renderer/ffmpeg.py`. **Статус:** TODO.
+**Файл:** `backend/renderer/ffmpeg.py`. **Статус:** реализована.
 
 - **Вход/выход:** `build_command(spec, audio: Path, subtitles: Path, output: Path) -> list[str]`.
 - **Что написать:** аргументы для цвета #8ace00, libass, 1280x720, 30 fps,
@@ -163,7 +162,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A1.06. `run_ffmpeg`
 
-**Файл:** `backend/renderer/ffmpeg.py`. **Статус:** TODO.
+**Файл:** `backend/renderer/ffmpeg.py`. **Статус:** реализована.
 
 - **Вход/выход:** `run_ffmpeg(arguments: list[str], timeout_seconds=240) -> None`;
   ненулевой exit code/timeout становятся исключениями.
@@ -178,7 +177,7 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A1.07. `render_video`
 
-**Файл:** `backend/renderer/render.py`. **Статус:** TODO после проверки снимка.
+**Файл:** `backend/renderer/render.py`. **Статус:** реализована.
 
 - **Вход/выход:** `render_video(spec, audio_path: Path, output_path: Path) -> RenderResult`.
 - **Что написать:** проверить снимок и аудио, создать ASS и временный MP4 в
@@ -194,14 +193,14 @@ Renderer не импортирует FastAPI, SQLAlchemy или Redis. В API н
 
 ## A1.08. `main` CLI
 
-**Файл:** `backend/renderer/cli.py`. **Статус:** вход реализован.
+**Файл:** `backend/renderer/cli.py`. **Статус:** реализована.
 
 - **Вход/выход:** `python -m renderer.cli spec.json audio.wav output.mp4`;
-  сейчас код 3 для незавершённого рендера, 2 для неверного входа, после реализации 0.
-- **Что сделать:** сохранить внешний контракт, дополнить обработку согласованных
-  ошибок FFmpeg после реализации; не печатать успех при отсутствующем MP4.
-- **Проверка:** valid JSON + fixture, invalid-overlap, нет аудио, повреждённый JSON;
-  до реализации ожидаемый код 3 не считается тестом генерации.
+  код 0 и путь при успехе, код 2 для неверного входа, код 1 при сбое рендера.
+- **Действия:** прочитать JSON, собрать `RenderSpec`, вызвать `render_video`
+  и вывести путь к опубликованному MP4.
+- **Проверка:** валидный JSON и WAV, `invalid-overlap`, отсутствующее аудио,
+  повреждённый JSON и ошибка FFmpeg.
 - **Зависимости:** `render_video`, JSON fixtures.
 - **Передать:** Варваре для воспроизведения worker-ошибок и Татьяне для ручного прогона.
 
