@@ -10,7 +10,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { saveAndStartRender, splitLyrics } from './lyrics';
 import { msToSeconds } from './time';
 import { TimingTable } from './TimingTable';
-import { validateRenderLines, type TimingIssue } from './validation';
+import { validateDraftLines, validateRenderLines, type TimingIssue } from './validation';
 
 type EditorState =
   | { status: 'loading' }
@@ -201,6 +201,12 @@ function ProjectEditor({ projectId }: { projectId: string }) {
 
   async function handleSave() {
     if (state.status !== 'loaded' || activeOperation.current || focusUnappliedLyrics() || focusInvalidTimingInput()) return;
+    const issues = validateDraftLines(state.draft.lines, state.project.duration_ms);
+    if (issues.length) {
+      setRenderIssues(issues);
+      return;
+    }
+
     const operation = beginOperation('saving');
     try {
       const project = await saveLyrics(state.project.id, state.draft);

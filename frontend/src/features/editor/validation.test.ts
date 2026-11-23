@@ -1,10 +1,40 @@
 import { describe, expect, it } from 'vitest';
-import { validateRenderLines } from './validation';
+import { validateDraftLines, validateRenderLines } from './validation';
 import { msToSeconds, secondsToMs } from './time';
 import { splitLyrics } from './lyrics';
 import type { LyricLine } from '../../shared/types/project';
 
 const line = (id: string, start: number | null, end: number | null): LyricLine => ({ id, text: 'Своя строка', start_ms: start, end_ms: end });
+
+describe('контракт сохранения черновика B1', () => {
+  it('разрешает пустой черновик, null, ноль и одинаковый текст', () => {
+    expect(validateDraftLines([], null)).toEqual([]);
+    expect(validateDraftLines([line('1', 0, null), line('2', null, 5000)], 5000)).toEqual([]);
+  });
+
+  it('проверяет заданную границу даже в неполной строке', () => {
+    expect(validateDraftLines([line('1', -1, null), line('2', null, 100.5)], null).map(({ field }) => field))
+      .toEqual(['lines[0].start_ms', 'lines[1].end_ms']);
+    expect(validateDraftLines([line('1', 5001, null), line('2', null, 5001)], 5000).map(({ field }) => field))
+      .toEqual(['lines[0].start_ms', 'lines[1].end_ms']);
+    expect(validateDraftLines([line('1', 5001, null)], null)).toEqual([]);
+  });
+
+  it('отклоняет короткую или перевёрнутую пару, а пересечения проверяет при рендере', () => {
+    const invalid = [line('1', 10, 5), line('2', 0, 99)];
+    expect(validateDraftLines(invalid, 5000).map(({ field }) => field)).toEqual(['lines[0].end_ms', 'lines[1].end_ms']);
+    const overlapping = [line('1', 0, 1000), line('2', 900, 1500)];
+    expect(validateDraftLines(overlapping, 5000)).toEqual([]);
+    expect(validateRenderLines(overlapping, 5000).map(({ field }) => field)).toEqual(['lines[1].start_ms']);
+  });
+
+  it('соблюдает лимит строк, Unicode-длину и запрет пустого текста в схеме B1', () => {
+    const maxLines = Array.from({ length: 100 }, (_, index) => ({ ...line(String(index), null, null), text: '🎵'.repeat(120) }));
+    expect(validateDraftLines(maxLines, null)).toEqual([]);
+    const tooMany = [...maxLines, { ...line('1', null, null), text: '\u001c\u0085' }];
+    expect(validateDraftLines(tooMany, null).map(({ field }) => field)).toEqual(['lines', 'lines[100].id', 'lines[100].text']);
+  });
+});
 
 describe('контракт ручной разметки', () => {
   it('допускает смежные строки и паузы', () => {
