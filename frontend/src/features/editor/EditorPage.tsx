@@ -5,6 +5,7 @@ import { getProject, saveLyrics } from '../../shared/api/projects';
 import { LIMITS } from '../../shared/limits';
 import type { LyricsDraft, Project } from '../../shared/types/project';
 import { FieldError } from '../../shared/ui/FieldError';
+import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
 import { AudioPlayer } from './AudioPlayer';
 import { saveAndStartRender, splitLyrics } from './lyrics';
 import { msToSeconds } from './time';
@@ -14,7 +15,14 @@ import { validateRenderLines, type TimingIssue } from './validation';
 type EditorState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'loaded'; project: Project; draft: LyricsDraft; dirty: boolean; lyricsInput: string };
+  | {
+    status: 'loaded';
+    project: Project;
+    draft: LyricsDraft;
+    dirty: boolean;
+    lyricsInput: string;
+    appliedLyricsInput: string;
+  };
 
 type OperationFeedback = { status: 'saving' | 'saved' | 'starting' } | { status: 'error'; message: string };
 
@@ -58,6 +66,15 @@ function ProjectEditor({ projectId }: { projectId: string }) {
   const [currentTimeMs, setCurrentTimeMs] = useState<number | null>(null);
   const [renderIssues, setRenderIssues] = useState<TimingIssue[] | null>(null);
   const [operationFeedback, setOperationFeedback] = useState<OperationFeedback>();
+  const [showResult, setShowResult] = useState(false);
+  const hasUnappliedLyrics = state.status === 'loaded' && state.lyricsInput !== state.appliedLyricsInput;
+
+  useUnsavedChanges(state.status === 'loaded' && (state.dirty || hasUnappliedLyrics));
+
+  useEffect(() => {
+    // Let the router clear the editor's blocker before opening the saved result.
+    if (showResult) void navigate(`/projects/${encodeURIComponent(projectId)}/result`);
+  }, [navigate, projectId, showResult]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -65,12 +82,14 @@ function ProjectEditor({ projectId }: { projectId: string }) {
     void getProject(projectId, controller.signal).then((project) => {
       // Ignore a response that arrives after the editor has been closed or reset.
       if (controller.signal.aborted) return;
+      const lyricsInput = project.lines.map((line) => line.text).join('\n');
       setState({
         status: 'loaded',
         project,
         draft: copyDraft(project),
         dirty: false,
-        lyricsInput: project.lines.map((line) => line.text).join('\n'),
+        lyricsInput,
+        appliedLyricsInput: lyricsInput,
       });
     }, (error: unknown) => {
       if (controller.signal.aborted) return;
@@ -125,7 +144,7 @@ function ProjectEditor({ projectId }: { projectId: string }) {
 
     setLyricsError(undefined);
     clearDraftFeedback();
-    setState({ ...state, draft: { ...state.draft, lines }, dirty: true });
+    setState({ ...state, draft: { ...state.draft, lines }, dirty: true, appliedLyricsInput: state.lyricsInput });
   }
 
   function clearDraftFeedback() {
@@ -140,6 +159,13 @@ function ProjectEditor({ projectId }: { projectId: string }) {
     return Boolean(invalidInput);
   }
 
+  function focusUnappliedLyrics(): boolean {
+    if (!hasUnappliedLyrics) return false;
+    setLyricsError('Нажмите «Разбить на строки», чтобы применить новый текст.');
+    document.getElementById('lyrics-input')?.focus();
+    return true;
+  }
+
   function beginOperation(status: 'saving' | 'starting'): AbortController {
     const controller = new AbortController();
     activeOperation.current = controller;
@@ -149,7 +175,15 @@ function ProjectEditor({ projectId }: { projectId: string }) {
   }
 
   function acceptSavedProject(project: Project) {
-    setState((current) => current.status === 'loaded' ? { ...current, project, draft: copyDraft(project), dirty: false } : current);
+    const lyricsInput = project.lines.map((line) => line.text).join('\n');
+    setState((current) => current.status === 'loaded' ? {
+      ...current,
+      project,
+      draft: copyDraft(project),
+      dirty: false,
+      lyricsInput,
+      appliedLyricsInput: lyricsInput,
+    } : current);
   }
 
   function showOperationError(error: unknown, fallback: string, draftSaved = false) {
@@ -166,7 +200,7 @@ function ProjectEditor({ projectId }: { projectId: string }) {
   }
 
   async function handleSave() {
-    if (state.status !== 'loaded' || activeOperation.current || focusInvalidTimingInput()) return;
+    if (state.status !== 'loaded' || activeOperation.current || focusUnappliedLyrics() || focusInvalidTimingInput()) return;
     const operation = beginOperation('saving');
     try {
       const project = await saveLyrics(state.project.id, state.draft);
@@ -181,7 +215,7 @@ function ProjectEditor({ projectId }: { projectId: string }) {
   }
 
   async function handleGenerate() {
-    if (state.status !== 'loaded' || activeOperation.current || focusInvalidTimingInput()) return;
+    if (state.status !== 'loaded' || activeOperation.current || focusUnappliedLyrics() || focusInvalidTimingInput()) return;
     const issues = validateRenderLines(state.draft.lines, state.project.duration_ms);
     if (issues.length) {
       setRenderIssues(issues);
@@ -196,7 +230,7 @@ function ProjectEditor({ projectId }: { projectId: string }) {
         if (!operation.signal.aborted) acceptSavedProject(project);
       });
       // The result page loads the project's latest job so the same URL also works after refresh.
-      if (!operation.signal.aborted) void navigate(`/projects/${encodeURIComponent(state.project.id)}/result`);
+      if (!operation.signal.aborted) setShowResult(true);
     } catch (error) {
       if (!operation.signal.aborted) showOperationError(error, 'Не удалось запустить генерацию.', draftSaved);
     } finally {
@@ -244,7 +278,10 @@ function ProjectEditor({ projectId }: { projectId: string }) {
         durationMs={state.project.duration_ms}
         currentTimeMs={currentTimeMs}
         issues={renderIssues ?? []}
-        onTimingInput={clearDraftFeedback}
+        onTimingInput={() => {
+          clearDraftFeedback();
+          if (!state.dirty) setState({ ...state, dirty: true });
+        }}
         onChange={(lines) => {
           clearDraftFeedback();
           setState({ ...state, draft: { ...state.draft, lines }, dirty: true });

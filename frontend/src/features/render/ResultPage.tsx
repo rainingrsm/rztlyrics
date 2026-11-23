@@ -77,6 +77,7 @@ function ProjectResult({ projectId }: { projectId: string }) {
         </>
       );
     case 'succeeded':
+      // TODO(B2): Compare revisions once the job API includes the snapshot revision.
       return job.video_url
         ? <VideoResult videoUrl={job.video_url} jobId={job.id} />
         : <p className="field-error" role="alert">Видео готово, но сервер не вернул ссылку.</p>;
