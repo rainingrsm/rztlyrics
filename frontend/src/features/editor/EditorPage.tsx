@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError } from '../../shared/api/client';
-import { getProject } from '../../shared/api/projects';
+import { getProject, saveLyrics } from '../../shared/api/projects';
 import { LIMITS } from '../../shared/limits';
 import type { LyricsDraft, Project } from '../../shared/types/project';
 import { FieldError } from '../../shared/ui/FieldError';
@@ -16,10 +16,17 @@ type EditorState =
   | { status: 'error'; message: string }
   | { status: 'loaded'; project: Project; draft: LyricsDraft; dirty: boolean; lyricsInput: string };
 
-function validationFocusId(field: string): string {
+type SaveFeedback = { status: 'saving' | 'saved' } | { status: 'error'; message: string };
+
+function copyDraft(project: Project): LyricsDraft {
+  return { style: project.style, lines: project.lines.map((line) => ({ ...line })) };
+}
+
+function validationFocusId(field: string): string | undefined {
   if (field === 'duration_ms') return 'editor-audio';
+  if (field === 'lines') return 'lyrics-input';
   const row = /^lines\[(\d+)\](?:\.(text|id|start_ms|end_ms))?$/.exec(field);
-  if (!row) return 'lyrics-input';
+  if (!row) return undefined;
 
   const index = Number(row[1]) + 1;
   if (row[2] === 'text' || row[2] === 'id') return `timing-text-${index}`;
@@ -43,11 +50,13 @@ export function EditorPage() {
 }
 
 function ProjectEditor({ projectId }: { projectId: string }) {
-  const editorRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLFieldSetElement>(null);
+  const saving = useRef(false);
   const [state, setState] = useState<EditorState>({ status: 'loading' });
   const [lyricsError, setLyricsError] = useState<string>();
   const [currentTimeMs, setCurrentTimeMs] = useState<number | null>(null);
   const [renderIssues, setRenderIssues] = useState<TimingIssue[] | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,7 +67,7 @@ function ProjectEditor({ projectId }: { projectId: string }) {
       setState({
         status: 'loaded',
         project,
-        draft: { style: project.style, lines: project.lines.map((line) => ({ ...line })) },
+        draft: copyDraft(project),
         dirty: false,
         lyricsInput: project.lines.map((line) => line.text).join('\n'),
       });
@@ -76,7 +85,8 @@ function ProjectEditor({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     const firstIssue = renderIssues?.[0];
-    if (firstIssue) document.getElementById(validationFocusId(firstIssue.field))?.focus();
+    const id = firstIssue && validationFocusId(firstIssue.field);
+    if (id) document.getElementById(id)?.focus();
   }, [renderIssues]);
 
   if (state.status === 'loading') return <p role="status">Загружаем проект…</p>;
@@ -111,28 +121,60 @@ function ProjectEditor({ projectId }: { projectId: string }) {
     if (hasTimings && !window.confirm('Разбить текст заново? Текущие тайминги будут удалены.')) return;
 
     setLyricsError(undefined);
-    setRenderIssues(null);
+    clearDraftFeedback();
     setState({ ...state, draft: { ...state.draft, lines }, dirty: true });
+  }
+
+  function clearDraftFeedback() {
+    setRenderIssues(null);
+    setSaveFeedback(undefined);
+  }
+
+  function focusInvalidTimingInput(): boolean {
+    // The last committed time can still be valid while the field contains invalid text.
+    const invalidInput = editorRef.current?.querySelector<HTMLInputElement>('input:invalid');
+    invalidInput?.focus();
+    return Boolean(invalidInput);
   }
 
   function handleValidateRender() {
     if (state.status !== 'loaded') return;
-
-    // A field can still contain invalid text even when its last committed time is valid.
-    const invalidInput = editorRef.current?.querySelector<HTMLInputElement>('input:invalid');
-    if (invalidInput) {
+    if (focusInvalidTimingInput()) {
       setRenderIssues(null);
-      invalidInput.focus();
       return;
     }
     setRenderIssues(validateRenderLines(state.draft.lines, state.project.duration_ms));
+  }
+
+  async function handleSave() {
+    if (state.status !== 'loaded' || saving.current || focusInvalidTimingInput()) return;
+    saving.current = true;
+    setRenderIssues(null);
+    setSaveFeedback({ status: 'saving' });
+
+    try {
+      const project = await saveLyrics(state.project.id, state.draft);
+      setState({ ...state, project, draft: copyDraft(project), dirty: false });
+      setSaveFeedback({ status: 'saved' });
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Не удалось сохранить черновик. Повторите попытку.';
+      const field = error instanceof ApiError && error.status === 422 ? error.details.field : undefined;
+      if (field && validationFocusId(field)) {
+        setSaveFeedback(undefined);
+        setRenderIssues([{ field, message }]);
+      } else {
+        setSaveFeedback({ status: 'error', message });
+      }
+    } finally {
+      saving.current = false;
+    }
   }
 
   const audioError = renderIssues?.find(({ field }) => field === 'duration_ms')?.message;
   const lyricsMessage = lyricsError ?? renderIssues?.find(({ field }) => field === 'lines')?.message;
 
   return (
-    <div ref={editorRef}>
+    <fieldset className="editor-fields" ref={editorRef} disabled={saveFeedback?.status === 'saving'}>
       <div id="editor-audio" role="group" aria-label="Аудиодорожка" tabIndex={-1}
         aria-describedby={audioError ? 'editor-audio-error' : undefined}>
         <AudioPlayer audioUrl={state.project.audio_url} onTimeChange={setCurrentTimeMs} />
@@ -148,28 +190,31 @@ function ProjectEditor({ projectId }: { projectId: string }) {
         aria-describedby={lyricsMessage ? 'lyrics-error' : undefined}
         onChange={(event) => {
           setLyricsError(undefined);
-          setRenderIssues(null);
+          clearDraftFeedback();
           setState({ ...state, lyricsInput: event.target.value });
         }}
       />
       <FieldError id="lyrics-error" message={lyricsMessage} />
       <div className="actions">
         <button type="button" onClick={handleSplitLyrics}>Разбить на строки</button>
-        <button type="button" disabled>Сохранить</button>
+        <button type="button" onClick={() => void handleSave()}>Сохранить</button>
         <button type="button" onClick={handleValidateRender}>Проверить разметку</button>
       </div>
       {renderIssues?.length === 0 && <p role="status">Проверка таймингов пройдена.</p>}
+      {saveFeedback?.status === 'saving' && <p role="status">Сохраняем черновик…</p>}
+      {saveFeedback?.status === 'saved' && <p role="status">Черновик сохранён.</p>}
+      <FieldError id="draft-save-error" message={saveFeedback?.status === 'error' ? saveFeedback.message : undefined} />
       <TimingTable
         lines={state.draft.lines}
         durationMs={state.project.duration_ms}
         currentTimeMs={currentTimeMs}
         issues={renderIssues ?? []}
-        onTimingInput={() => setRenderIssues(null)}
+        onTimingInput={clearDraftFeedback}
         onChange={(lines) => {
-          setRenderIssues(null);
+          clearDraftFeedback();
           setState({ ...state, draft: { ...state.draft, lines }, dirty: true });
         }}
       />
-    </div>
+    </fieldset>
   );
 }
