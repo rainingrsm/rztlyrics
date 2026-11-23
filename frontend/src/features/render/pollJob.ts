@@ -1,14 +1,38 @@
+import { getJob } from '../../shared/api/projects';
 import type { RenderJob } from '../../shared/types/project';
 
-/** TODO F1 + B2: опрашивать GET jobs примерно каждые 2 с до succeeded/failed.
- * Вход: jobId, callback, AbortSignal; выход: завершение опроса. Очистить таймер при уходе со страницы.
- * Ошибка сети не создаёт новый render. Для повторного рендера нужна отдельная кнопка и POST.
- * Приёмка: отмена и размонтирование не оставляют запросов; проценты не выдумываются.
- */
+const POLL_DELAY_MS = 2_000;
+
+function waitForNextPoll(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(finish, POLL_DELAY_MS);
+    signal.addEventListener('abort', finish, { once: true });
+
+    function finish() {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', finish);
+      resolve();
+    }
+  });
+}
+
 export async function pollJob(
-  _jobId: string,
-  _onUpdate: (job: RenderJob) => void,
-  _signal: AbortSignal,
+  jobId: string,
+  onUpdate: (job: RenderJob) => void,
+  signal: AbortSignal,
 ): Promise<void> {
-  throw new Error('TODO F1: опрос задачи ещё не реализован.');
+  try {
+    while (!signal.aborted) {
+      const job = await getJob(jobId, signal);
+      if (signal.aborted) return;
+
+      onUpdate(job);
+      if (signal.aborted || (job.status !== 'queued' && job.status !== 'running')) return;
+
+      // Schedule the delay only after the current request finishes.
+      await waitForNextPoll(signal);
+    }
+  } catch (error) {
+    if (!signal.aborted) throw error;
+  }
 }
