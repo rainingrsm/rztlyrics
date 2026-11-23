@@ -6,6 +6,7 @@ import { LIMITS } from '../../shared/limits';
 import type { LyricsDraft, Project } from '../../shared/types/project';
 import { FieldError } from '../../shared/ui/FieldError';
 import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
+import type { ResultNavigationState } from '../render/ResultPage';
 import { AudioPlayer } from './AudioPlayer';
 import { saveAndStartRender, splitLyrics } from './lyrics';
 import { msToSeconds } from './time';
@@ -66,15 +67,18 @@ function ProjectEditor({ projectId }: { projectId: string }) {
   const [currentTimeMs, setCurrentTimeMs] = useState<number | null>(null);
   const [renderIssues, setRenderIssues] = useState<TimingIssue[] | null>(null);
   const [operationFeedback, setOperationFeedback] = useState<OperationFeedback>();
-  const [showResult, setShowResult] = useState(false);
+  const [resultJobId, setResultJobId] = useState<string>();
   const hasUnappliedLyrics = state.status === 'loaded' && state.lyricsInput !== state.appliedLyricsInput;
 
   useUnsavedChanges(state.status === 'loaded' && (state.dirty || hasUnappliedLyrics));
 
   useEffect(() => {
     // Let the router clear the editor's blocker before opening the saved result.
-    if (showResult) void navigate(`/projects/${encodeURIComponent(projectId)}/result`);
-  }, [navigate, projectId, showResult]);
+    if (resultJobId) {
+      const state: ResultNavigationState = { projectId, jobId: resultJobId };
+      void navigate(`/projects/${encodeURIComponent(projectId)}/result`, { state });
+    }
+  }, [navigate, projectId, resultJobId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -231,12 +235,11 @@ function ProjectEditor({ projectId }: { projectId: string }) {
     const operation = beginOperation('starting');
     let draftSaved = false;
     try {
-      await saveAndStartRender({ ...state.project, ...state.draft }, (project) => {
+      const jobId = await saveAndStartRender({ ...state.project, ...state.draft }, (project) => {
         draftSaved = true;
         if (!operation.signal.aborted) acceptSavedProject(project);
       });
-      // The result page loads the project's latest job so the same URL also works after refresh.
-      if (!operation.signal.aborted) setShowResult(true);
+      if (!operation.signal.aborted) setResultJobId(jobId);
     } catch (error) {
       if (!operation.signal.aborted) showOperationError(error, 'Не удалось запустить генерацию.', draftSaved);
     } finally {

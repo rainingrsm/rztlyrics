@@ -73,6 +73,14 @@ describe('saveAndStartRender', () => {
     expect(getProject).not.toHaveBeenCalled();
   });
 
+  it('сообщает об ошибке, если ответ запуска не содержит ID задачи', async () => {
+    vi.mocked(createRender).mockResolvedValue({ job_id: '', status: 'queued' });
+
+    await expect(saveAndStartRender(project)).rejects.toMatchObject({ details: { code: 'INVALID_RENDER_RESPONSE' } });
+    expect(createRender).toHaveBeenCalledTimes(1);
+    expect(getProject).not.toHaveBeenCalled();
+  });
+
   it.each([conflict, new TypeError('Не получен ответ на POST')])('находит активную задачу без повтора POST при %s', async (error) => {
     vi.mocked(createRender).mockRejectedValue(error);
     vi.mocked(getProject).mockResolvedValue({ ...savedProject, latest_job_id: runningJob.id });
