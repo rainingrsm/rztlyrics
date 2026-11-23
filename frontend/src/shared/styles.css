@@ -24,6 +24,8 @@ p { line-height: 1.6; }
 .panel { padding: 32px; background: #1c211a; border: 1px solid #343e2d; border-radius: 14px; }
 .upload-panel { margin-top: 34px; max-width: 650px; }
 .upload-panel p, .muted { color: #b5bdae; }
+.upload-panel .field-error { color: #ffb3a7; }
+.upload-status:not(:empty) { display: inline-block; margin-left: 12px; }
 .steps { display: flex; gap: 38px; padding-left: 20px; margin-top: 38px; color: #b5bdae; font-size: 14px; }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 20px; margin-top: 24px; }
 .table-scroll { overflow-x: auto; margin: 32px 0; }
