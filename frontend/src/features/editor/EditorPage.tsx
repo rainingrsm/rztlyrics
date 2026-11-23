@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../shared/api/client';
 import { getProject, saveLyrics } from '../../shared/api/projects';
 import { LIMITS } from '../../shared/limits';
 import type { LyricsDraft, Project } from '../../shared/types/project';
 import { FieldError } from '../../shared/ui/FieldError';
 import { AudioPlayer } from './AudioPlayer';
-import { splitLyrics } from './lyrics';
+import { saveAndStartRender, splitLyrics } from './lyrics';
 import { msToSeconds } from './time';
 import { TimingTable } from './TimingTable';
 import { validateRenderLines, type TimingIssue } from './validation';
@@ -16,7 +16,7 @@ type EditorState =
   | { status: 'error'; message: string }
   | { status: 'loaded'; project: Project; draft: LyricsDraft; dirty: boolean; lyricsInput: string };
 
-type SaveFeedback = { status: 'saving' | 'saved' } | { status: 'error'; message: string };
+type OperationFeedback = { status: 'saving' | 'saved' | 'starting' } | { status: 'error'; message: string };
 
 function copyDraft(project: Project): LyricsDraft {
   return { style: project.style, lines: project.lines.map((line) => ({ ...line })) };
@@ -50,13 +50,14 @@ export function EditorPage() {
 }
 
 function ProjectEditor({ projectId }: { projectId: string }) {
+  const navigate = useNavigate();
   const editorRef = useRef<HTMLFieldSetElement>(null);
-  const saving = useRef(false);
+  const activeOperation = useRef<AbortController | null>(null);
   const [state, setState] = useState<EditorState>({ status: 'loading' });
   const [lyricsError, setLyricsError] = useState<string>();
   const [currentTimeMs, setCurrentTimeMs] = useState<number | null>(null);
   const [renderIssues, setRenderIssues] = useState<TimingIssue[] | null>(null);
-  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback>();
+  const [operationFeedback, setOperationFeedback] = useState<OperationFeedback>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,6 +83,8 @@ function ProjectEditor({ projectId }: { projectId: string }) {
 
     return () => controller.abort();
   }, [projectId]);
+
+  useEffect(() => () => activeOperation.current?.abort(), []);
 
   useEffect(() => {
     const firstIssue = renderIssues?.[0];
@@ -127,7 +130,7 @@ function ProjectEditor({ projectId }: { projectId: string }) {
 
   function clearDraftFeedback() {
     setRenderIssues(null);
-    setSaveFeedback(undefined);
+    setOperationFeedback(undefined);
   }
 
   function focusInvalidTimingInput(): boolean {
@@ -137,44 +140,76 @@ function ProjectEditor({ projectId }: { projectId: string }) {
     return Boolean(invalidInput);
   }
 
-  function handleValidateRender() {
-    if (state.status !== 'loaded') return;
-    if (focusInvalidTimingInput()) {
-      setRenderIssues(null);
-      return;
+  function beginOperation(status: 'saving' | 'starting'): AbortController {
+    const controller = new AbortController();
+    activeOperation.current = controller;
+    setRenderIssues(null);
+    setOperationFeedback({ status });
+    return controller;
+  }
+
+  function acceptSavedProject(project: Project) {
+    setState((current) => current.status === 'loaded' ? { ...current, project, draft: copyDraft(project), dirty: false } : current);
+  }
+
+  function showOperationError(error: unknown, fallback: string, draftSaved = false) {
+    const detail = error instanceof ApiError ? error.message : fallback;
+    const message = draftSaved ? `Черновик сохранён. ${detail}` : detail;
+    const field = error instanceof ApiError && error.status === 422 ? error.details.field : undefined;
+    const fieldId = field && validationFocusId(field);
+    if (field && fieldId && document.getElementById(fieldId)) {
+      setOperationFeedback(undefined);
+      setRenderIssues([{ field, message }]);
+    } else {
+      setOperationFeedback({ status: 'error', message });
     }
-    setRenderIssues(validateRenderLines(state.draft.lines, state.project.duration_ms));
   }
 
   async function handleSave() {
-    if (state.status !== 'loaded' || saving.current || focusInvalidTimingInput()) return;
-    saving.current = true;
-    setRenderIssues(null);
-    setSaveFeedback({ status: 'saving' });
-
+    if (state.status !== 'loaded' || activeOperation.current || focusInvalidTimingInput()) return;
+    const operation = beginOperation('saving');
     try {
       const project = await saveLyrics(state.project.id, state.draft);
-      setState({ ...state, project, draft: copyDraft(project), dirty: false });
-      setSaveFeedback({ status: 'saved' });
+      if (operation.signal.aborted) return;
+      acceptSavedProject(project);
+      setOperationFeedback({ status: 'saved' });
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Не удалось сохранить черновик. Повторите попытку.';
-      const field = error instanceof ApiError && error.status === 422 ? error.details.field : undefined;
-      if (field && validationFocusId(field)) {
-        setSaveFeedback(undefined);
-        setRenderIssues([{ field, message }]);
-      } else {
-        setSaveFeedback({ status: 'error', message });
-      }
+      if (!operation.signal.aborted) showOperationError(error, 'Не удалось сохранить черновик. Повторите попытку.');
     } finally {
-      saving.current = false;
+      activeOperation.current = null;
+    }
+  }
+
+  async function handleGenerate() {
+    if (state.status !== 'loaded' || activeOperation.current || focusInvalidTimingInput()) return;
+    const issues = validateRenderLines(state.draft.lines, state.project.duration_ms);
+    if (issues.length) {
+      setRenderIssues(issues);
+      return;
+    }
+
+    const operation = beginOperation('starting');
+    let draftSaved = false;
+    try {
+      await saveAndStartRender({ ...state.project, ...state.draft }, (project) => {
+        draftSaved = true;
+        if (!operation.signal.aborted) acceptSavedProject(project);
+      });
+      // The result page loads the project's latest job so the same URL also works after refresh.
+      if (!operation.signal.aborted) void navigate(`/projects/${encodeURIComponent(state.project.id)}/result`);
+    } catch (error) {
+      if (!operation.signal.aborted) showOperationError(error, 'Не удалось запустить генерацию.', draftSaved);
+    } finally {
+      activeOperation.current = null;
     }
   }
 
   const audioError = renderIssues?.find(({ field }) => field === 'duration_ms')?.message;
   const lyricsMessage = lyricsError ?? renderIssues?.find(({ field }) => field === 'lines')?.message;
+  const isBusy = operationFeedback?.status === 'saving' || operationFeedback?.status === 'starting';
 
   return (
-    <fieldset className="editor-fields" ref={editorRef} disabled={saveFeedback?.status === 'saving'}>
+    <fieldset className="editor-fields" ref={editorRef} disabled={isBusy}>
       <div id="editor-audio" role="group" aria-label="Аудиодорожка" tabIndex={-1}
         aria-describedby={audioError ? 'editor-audio-error' : undefined}>
         <AudioPlayer audioUrl={state.project.audio_url} onTimeChange={setCurrentTimeMs} />
@@ -198,12 +233,12 @@ function ProjectEditor({ projectId }: { projectId: string }) {
       <div className="actions">
         <button type="button" onClick={handleSplitLyrics}>Разбить на строки</button>
         <button type="button" onClick={() => void handleSave()}>Сохранить</button>
-        <button type="button" onClick={handleValidateRender}>Проверить разметку</button>
+        <button type="button" onClick={() => void handleGenerate()}>Сгенерировать видео</button>
       </div>
-      {renderIssues?.length === 0 && <p role="status">Проверка таймингов пройдена.</p>}
-      {saveFeedback?.status === 'saving' && <p role="status">Сохраняем черновик…</p>}
-      {saveFeedback?.status === 'saved' && <p role="status">Черновик сохранён.</p>}
-      <FieldError id="draft-save-error" message={saveFeedback?.status === 'error' ? saveFeedback.message : undefined} />
+      {operationFeedback?.status === 'saving' && <p role="status">Сохраняем черновик…</p>}
+      {operationFeedback?.status === 'saved' && <p role="status">Черновик сохранён.</p>}
+      {operationFeedback?.status === 'starting' && <p role="status">Сохраняем черновик и запускаем генерацию…</p>}
+      <FieldError id="editor-operation-error" message={operationFeedback?.status === 'error' ? operationFeedback.message : undefined} />
       <TimingTable
         lines={state.draft.lines}
         durationMs={state.project.duration_ms}
