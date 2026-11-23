@@ -33,7 +33,7 @@ table { width: 100%; border-collapse: collapse; text-align: left; }
 caption { text-align: left; font-size: 18px; margin-bottom: 12px; }
 th, td { padding: 14px; border-bottom: 1px solid #424c3b; }
 th { color: #b5bdae; font-size: 13px; }
-.video-placeholder { display: grid; place-items: center; aspect-ratio: 16 / 9; background: #111411; border: 1px dashed #424c3b; color: #a1ac98; padding: 24px; }
+.result-video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #111411; }
 .field-error { color: #ffb3a7; font-size: 14px; }
 footer { border-top: 1px solid #30382d; padding: 24px 0 36px; color: #899480; font-size: 13px; }
 @media (max-width: 600px) { .app-shell { padding: 0 18px; } .panel { padding: 22px; } .brand span { display: none; } .steps { display: grid; gap: 15px; } main { padding: 36px 0; } }
