@@ -2,15 +2,15 @@ import { request } from './client';
 import type { LyricsDraft, Project, QueuedRender, RenderJob } from '../types/project';
 
 /** F1 + B1: создать проект; сервер устанавливает HttpOnly-сессию. Пока API отвечает 501. */
-export function createProject(): Promise<Project> {
-  return request('/projects', { method: 'POST' });
+export function createProject(signal?: AbortSignal): Promise<Project> {
+  return request('/projects', { method: 'POST', signal });
 }
 
 /** F1 + B1: загрузить file; длительность берём только из ответа ffprobe на сервере. */
-export function uploadAudio(projectId: string, file: File): Promise<Project> {
+export function uploadAudio(projectId: string, file: File, signal?: AbortSignal): Promise<Project> {
   const body = new FormData();
   body.append('file', file);
-  return request(`/projects/${encodeURIComponent(projectId)}/audio`, { method: 'POST', body });
+  return request(`/projects/${encodeURIComponent(projectId)}/audio`, { method: 'POST', body, signal });
 }
 
 /** F2 + B1: восстановить сохранённый черновик при открытии URL или обновлении страницы. */
