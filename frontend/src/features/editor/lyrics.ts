@@ -31,6 +31,9 @@ export async function saveAndStartRender(project: Project, onSaved?: (savedProje
 
   try {
     const job = await createRender(project.id);
+    if (typeof job?.job_id !== 'string' || !job.job_id.trim()) {
+      throw new ApiError(502, { code: 'INVALID_RENDER_RESPONSE', message: 'Сервер не вернул идентификатор задачи.' });
+    }
     return job.job_id;
   } catch (error) {
     if (!(error instanceof TypeError) && !(error instanceof ApiError && error.status === 409)) throw error;
