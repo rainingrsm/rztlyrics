@@ -12,8 +12,7 @@ export function App() {
         <span className="version">v0 · каркас проекта</span>
       </header>
       <aside className="scaffold-notice">
-        Стартовый каркас: загрузка, сохранение и генерация ещё не подключены.
-        Кнопки недоступны до реализации соответствующих задач.
+        Проект в разработке. Серверная загрузка, сохранение и генерация ещё не готовы.
       </aside>
       <main><Routes>
         <Route path="/" element={<UploadPage />} />
