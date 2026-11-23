@@ -1,7 +1,24 @@
-/** TODO F1: вывести <video controls> по video_url и download-ссылку текущего job.
- * Вход: URL из succeeded job и job_id; выход: плеер и ссылка /api/v1/jobs/:id/video?download=1.
- * Приёмка: видео звучит, перематывается, скачивается; URL чужого job проверяет сервер.
- */
-export function VideoResult({ videoUrl: _videoUrl, jobId: _jobId }: { videoUrl: string; jobId: string }) {
-  return <p className="muted">Плеер результата ещё не подключён.</p>;
+import { useState } from 'react';
+
+export function VideoResult({ videoUrl, jobId }: { videoUrl: string; jobId: string }) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+
+  return (
+    <>
+      <video
+        className="result-video"
+        controls
+        preload="metadata"
+        src={videoUrl}
+        aria-label="Видео с текстом песни"
+        onError={() => setFailedUrl(videoUrl)}
+      />
+      {failedUrl === videoUrl && (
+        <p className="field-error" role="alert">Не удалось воспроизвести видео. Попробуйте скачать MP4.</p>
+      )}
+      <div className="actions">
+        <a href={`/api/v1/jobs/${encodeURIComponent(jobId)}/video?download=1`}>Скачать MP4</a>
+      </div>
+    </>
+  );
 }
