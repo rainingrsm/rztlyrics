@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 
+from renderer.ass import FRAME_HEIGHT, FRAME_WIDTH
 from renderer.models import RenderSpec
 from renderer.validation import MAX_AUDIO_BYTES, MAX_DURATION_MS, MIN_DURATION_MS
 
@@ -147,13 +148,43 @@ def validate_audio(path: Path) -> MediaInfo:
 
 
 def build_command(spec: RenderSpec, audio: Path, subtitles: Path, output: Path) -> list[str]:
-    """TODO A1: вернуть argv для FFmpeg без запуска и без shell-строк.
-
-    Фон #8ace00, 1280x720, 30 fps, libx264, AAC, yuv420p, +faststart.
-    В фильтр передавать только сгенерированное безопасное имя ASS; Windows-пути
-    требуют отдельной проверки экранирования. Фиксировать длину по duration_ms.
-    """
-    raise NotImplementedError("A1: собрать аргументы FFmpeg")
+    """Собрать аргументы FFmpeg для MP4 в стиле Brat."""
+    # FFmpeg parses the filename option and the filter graph separately.
+    filename = "'" + subtitles.resolve().as_posix().replace("'", r"'\''") + "'"
+    subtitle_filter = "ass=filename='" + filename.replace("'", r"'\''") + "'"
+    return [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-n",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=0x8ace00:s={FRAME_WIDTH}x{FRAME_HEIGHT}:r=30",
+        "-i",
+        str(audio.resolve()),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-vf",
+        subtitle_filter,
+        "-t",
+        f"{spec.duration_ms}ms",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4",
+        str(output.resolve()),
+    ]
 
 
 def run_ffmpeg(arguments: list[str], timeout_seconds: int = 240) -> None:
