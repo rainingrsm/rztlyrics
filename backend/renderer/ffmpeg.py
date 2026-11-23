@@ -6,10 +6,17 @@ import json
 import subprocess
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from os import SEEK_END
 from pathlib import Path
+from tempfile import TemporaryFile
 
+from renderer.ass import FRAME_HEIGHT, FRAME_WIDTH
 from renderer.models import RenderSpec
 from renderer.validation import MAX_AUDIO_BYTES, MAX_DURATION_MS, MIN_DURATION_MS
+
+
+class FFmpegError(RuntimeError):
+    """FFmpeg не смог завершить генерацию видео."""
 
 
 class MediaProbeError(RuntimeError):
@@ -147,20 +154,74 @@ def validate_audio(path: Path) -> MediaInfo:
 
 
 def build_command(spec: RenderSpec, audio: Path, subtitles: Path, output: Path) -> list[str]:
-    """TODO A1: вернуть argv для FFmpeg без запуска и без shell-строк.
-
-    Фон #8ace00, 1280x720, 30 fps, libx264, AAC, yuv420p, +faststart.
-    В фильтр передавать только сгенерированное безопасное имя ASS; Windows-пути
-    требуют отдельной проверки экранирования. Фиксировать длину по duration_ms.
-    """
-    raise NotImplementedError("A1: собрать аргументы FFmpeg")
+    """Собрать аргументы FFmpeg для MP4 в стиле Brat."""
+    # FFmpeg parses the filename option and the filter graph separately.
+    filename = "'" + subtitles.resolve().as_posix().replace("'", r"'\''") + "'"
+    subtitle_filter = "ass=filename='" + filename.replace("'", r"'\''") + "'"
+    return [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-n",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=0x8ace00:s={FRAME_WIDTH}x{FRAME_HEIGHT}:r=30",
+        "-i",
+        str(audio.resolve()),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-vf",
+        subtitle_filter,
+        "-t",
+        f"{spec.duration_ms}ms",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4",
+        str(output.resolve()),
+    ]
 
 
 def run_ffmpeg(arguments: list[str], timeout_seconds: int = 240) -> None:
-    """TODO A1: выполнить argv с shell=False, timeout и проверкой exit code.
+    """Запустить FFmpeg с таймаутом и вернуть ошибку с короткой диагностикой."""
+    if timeout_seconds <= 0:
+        raise ValueError("Таймаут должен быть положительным")
 
-    При timeout завершить дочерний процесс; короткий диагностический лог
-    передать worker. Неполный MP4 не должен стать доступен через API.
-    Timeout FFmpeg меньше job timeout RQ (300 с).
-    """
-    raise NotImplementedError("A1: реализовать контролируемый запуск FFmpeg")
+    # Keep stderr out of memory while FFmpeg runs. Read only the tail on failure.
+    with TemporaryFile() as log:
+        try:
+            result = subprocess.run(
+                arguments,
+                shell=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=log,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except FileNotFoundError as error:
+            raise FFmpegError("FFmpeg не найден") from error
+        except subprocess.TimeoutExpired as error:
+            raise FFmpegError(f"FFmpeg превысил лимит времени ({timeout_seconds} с)") from error
+        except OSError as error:
+            raise FFmpegError("Не удалось запустить FFmpeg") from error
+
+        if result.returncode == 0:
+            return
+
+        log_size = log.seek(0, SEEK_END)
+        log.seek(max(0, log_size - 4096))
+        details = log.read().decode("utf-8", errors="replace").strip()
+        message = f"FFmpeg завершился с кодом {result.returncode}"
+        raise FFmpegError(f"{message}: {details}" if details else message)

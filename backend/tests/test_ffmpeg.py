@@ -1,9 +1,11 @@
 import json
 import subprocess
+import sys
 
 import pytest
 
 from renderer import ffmpeg
+from renderer.models import LyricLine, RenderSpec
 
 
 def test_probe_media_returns_audio_info(tmp_path, monkeypatch):
@@ -76,3 +78,55 @@ def test_validate_audio_raises_error_when_file_too_large(tmp_path, monkeypatch):
         ffmpeg.validate_audio(audio_file)
 
     assert error.value.code == "file_too_large"
+
+
+def test_build_command_keeps_media_paths_and_lyrics_separate(tmp_path):
+    audio = tmp_path / "input tone.wav"
+    subtitles = tmp_path / "lyrics' [1], draft;.ass"
+    output = tmp_path / "result video.mp4"
+    lyrics = r"Слова, которых нет в аргументах {\pos(1,2)}"
+    spec = RenderSpec("brat", 5_123, (LyricLine("a", lyrics, 0, 100),))
+
+    command = ffmpeg.build_command(spec, audio, subtitles, output)
+
+    assert command[0] == "ffmpeg"
+    assert command[command.index("-i") + 1] == "color=c=0x8ace00:s=1280x720:r=30"
+    assert str(audio.resolve()) in command
+    assert command[-1] == str(output.resolve())
+    assert command[command.index("-t") + 1] == "5123ms"
+    assert command[command.index("-vf") + 1].startswith("ass=filename=")
+    assert all(lyrics not in argument for argument in command)
+    assert [command[index + 1] for index, value in enumerate(command) if value == "-map"] == [
+        "0:v:0",
+        "1:a:0",
+    ]
+    assert command[command.index("-c:v") + 1] == "libx264"
+    assert command[command.index("-c:a") + 1] == "aac"
+    assert command[command.index("-pix_fmt") + 1] == "yuv420p"
+    assert command[command.index("-movflags") + 1] == "+faststart"
+
+
+def test_run_ffmpeg_returns_after_success():
+    assert ffmpeg.run_ffmpeg([sys.executable, "-c", "pass"]) is None
+
+
+def test_run_ffmpeg_reports_exit_code_and_stderr_tail():
+    script = "import sys; sys.stderr.write('first\\n' + 'x' * 8_000 + '\\nlast'); sys.exit(7)"
+
+    with pytest.raises(ffmpeg.FFmpegError) as error:
+        ffmpeg.run_ffmpeg([sys.executable, "-c", script])
+
+    message = str(error.value)
+    assert "кодом 7" in message
+    assert "first" not in message
+    assert message.endswith("last")
+
+
+def test_run_ffmpeg_reports_missing_executable(tmp_path):
+    with pytest.raises(ffmpeg.FFmpegError, match="не найден"):
+        ffmpeg.run_ffmpeg([str(tmp_path / "ffmpeg")])
+
+
+def test_run_ffmpeg_times_out():
+    with pytest.raises(ffmpeg.FFmpegError, match="лимит времени"):
+        ffmpeg.run_ffmpeg([sys.executable, "-c", "import time; time.sleep(10)"], timeout_seconds=1)
