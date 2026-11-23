@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ApiError } from '../../shared/api/client';
 import { getProject } from '../../shared/api/projects';
 import type { RenderJob } from '../../shared/types/project';
 import { pollJob } from './pollJob';
 import { VideoResult } from './VideoResult';
+
+export interface ResultNavigationState {
+  projectId: string;
+  jobId: string;
+}
 
 type ResultState =
   | { kind: 'loading' }
@@ -12,8 +17,16 @@ type ResultState =
   | { kind: 'job'; job: RenderJob }
   | { kind: 'error'; message: string; canRetry: boolean };
 
-function ProjectResult({ projectId }: { projectId: string }) {
-  const knownJobId = useRef<string | null>(null);
+function getNavigationJobId(state: unknown, projectId: string): string | null {
+  if (state && typeof state === 'object' && 'projectId' in state && state.projectId === projectId
+    && 'jobId' in state && typeof state.jobId === 'string' && state.jobId.trim()) {
+    return state.jobId;
+  }
+  return null;
+}
+
+function ProjectResult({ projectId, initialJobId }: { projectId: string; initialJobId: string | null }) {
+  const knownJobId = useRef(initialJobId);
   const [state, setState] = useState<ResultState>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -32,7 +45,12 @@ function ProjectResult({ projectId }: { projectId: string }) {
         }
 
         knownJobId.current = jobId;
-        await pollJob(jobId, (job) => setState({ kind: 'job', job }), signal);
+        await pollJob(jobId, (job) => {
+          if (job.id !== jobId || job.project_id !== projectId) {
+            throw new ApiError(404, { code: 'NOT_FOUND', message: 'Задача не найдена или недоступна.' });
+          }
+          setState({ kind: 'job', job });
+        }, signal);
       } catch (error) {
         if (signal.aborted) return;
         if (error instanceof ApiError) {
@@ -88,11 +106,13 @@ function ProjectResult({ projectId }: { projectId: string }) {
 
 export function ResultPage() {
   const { id } = useParams();
+  const { state: navigationState } = useLocation();
+  const jobId = id ? getNavigationJobId(navigationState, id) : null;
   return (
     <section className="panel">
       <p className="eyebrow">Шаг 3 · результат</p>
       <h1>Результат генерации</h1>
-      {id && <ProjectResult key={id} projectId={id} />}
+      {id && <ProjectResult key={`${id}:${jobId ?? ''}`} projectId={id} initialJobId={jobId} />}
       <div className="actions">
         {id
           ? <Link to={`/projects/${encodeURIComponent(id)}/edit`}>Вернуться к редактору</Link>
