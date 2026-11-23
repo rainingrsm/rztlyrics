@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 
 import pytest
 
@@ -103,3 +104,29 @@ def test_build_command_keeps_media_paths_and_lyrics_separate(tmp_path):
     assert command[command.index("-c:a") + 1] == "aac"
     assert command[command.index("-pix_fmt") + 1] == "yuv420p"
     assert command[command.index("-movflags") + 1] == "+faststart"
+
+
+def test_run_ffmpeg_returns_after_success():
+    assert ffmpeg.run_ffmpeg([sys.executable, "-c", "pass"]) is None
+
+
+def test_run_ffmpeg_reports_exit_code_and_stderr_tail():
+    script = "import sys; sys.stderr.write('first\\n' + 'x' * 8_000 + '\\nlast'); sys.exit(7)"
+
+    with pytest.raises(ffmpeg.FFmpegError) as error:
+        ffmpeg.run_ffmpeg([sys.executable, "-c", script])
+
+    message = str(error.value)
+    assert "кодом 7" in message
+    assert "first" not in message
+    assert message.endswith("last")
+
+
+def test_run_ffmpeg_reports_missing_executable(tmp_path):
+    with pytest.raises(ffmpeg.FFmpegError, match="не найден"):
+        ffmpeg.run_ffmpeg([str(tmp_path / "ffmpeg")])
+
+
+def test_run_ffmpeg_times_out():
+    with pytest.raises(ffmpeg.FFmpegError, match="лимит времени"):
+        ffmpeg.run_ffmpeg([sys.executable, "-c", "import time; time.sleep(10)"], timeout_seconds=1)
