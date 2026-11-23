@@ -114,7 +114,11 @@ function ProjectEditor({ projectId }: { projectId: string }) {
       />
       <FieldError id="lyrics-error" message={lyricsError} />
       <button type="button" onClick={handleSplitLyrics}>Разбить на строки</button>
-      <TimingTable lines={state.draft.lines} />
+      <TimingTable
+        lines={state.draft.lines}
+        currentTimeMs={currentTimeMs}
+        onChange={(lines) => setState({ ...state, draft: { ...state.draft, lines }, dirty: true })}
+      />
       <div className="actions"><button type="button" disabled>Сохранить</button><button type="button" disabled>Сгенерировать видео</button></div>
     </>
   );
