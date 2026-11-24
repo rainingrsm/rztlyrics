@@ -63,7 +63,7 @@ function EditorHeading({ children }: { children?: ReactNode }) {
   return (
     <header className="page-heading heading-with-actions">
       <div>
-        <h1>Тайминги</h1>
+        <h1 className="editor-title">Тайминги</h1>
         <p>Укажите, когда каждая строка появится в видео.</p>
       </div>
       {children}
