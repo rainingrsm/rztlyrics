@@ -9,7 +9,7 @@ from renderer.models import LyricLine, RenderSpec
 SPEC = RenderSpec("brat", 5_000, (LyricLine("a", "Текст", 0, 100),))
 
 
-@pytest.mark.parametrize("fails_during", ["ffmpeg", "verification"])
+@pytest.mark.parametrize("fails_during", ["ffmpeg", "codecs", "landscape"])
 def test_failed_render_cleans_temporary_files_and_preserves_output(
     tmp_path, monkeypatch, fails_during
 ):
@@ -23,7 +23,11 @@ def test_failed_render_cleans_temporary_files_and_preserves_output(
             raise FFmpegError("FFmpeg failed")
 
     monkeypatch.setattr(render, "run_ffmpeg", write_temporary_video)
-    media = MediaInfo(5_000, "aac", "vp9", 1280, 720)
+    media = (
+        MediaInfo(5_000, "aac", "h264", 1280, 720)
+        if fails_during == "landscape"
+        else MediaInfo(5_000, "aac", "vp9", 720, 1280)
+    )
     monkeypatch.setattr(render, "probe_media", lambda path: media)
 
     error = FFmpegError if fails_during == "ffmpeg" else render.RenderError

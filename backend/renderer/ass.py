@@ -7,7 +7,7 @@ from renderer.validation import validate_spec
 
 FONT_NAME = "DejaVu Sans"
 FONT_SIZE = 48
-FRAME_WIDTH, FRAME_HEIGHT = 1280, 720
+FRAME_WIDTH, FRAME_HEIGHT = 720, 1280
 MARGIN_X, MARGIN_Y = 64, 36
 
 

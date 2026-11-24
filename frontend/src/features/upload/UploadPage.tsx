@@ -82,31 +82,44 @@ export function UploadPage() {
   }
 
   return (
-    <section className="hero">
-      <p className="eyebrow">Музыка становится видео</p>
-      <h1>Твой трек.<br /><span>Твои строки.</span></h1>
-      <p className="intro">Загрузите аудио, расставьте время появления строк и создайте lyrics-видео в стиле Brat.</p>
-      <form className="panel upload-panel" onSubmit={submit}>
-        <h2>Начните с трека</h2>
-        <p>MP3 или WAV · до 20 MiB · от 5 до 60 секунд</p>
-        <label htmlFor="audio-file">Аудиофайл</label>
-        <input
-          id="audio-file"
-          type="file"
-          accept=".mp3,.wav,audio/mpeg,audio/wav"
-          aria-invalid={Boolean(fileError)}
-          aria-describedby={fileError ? 'audio-file-error' : undefined}
-          disabled={uploading}
-          onChange={selectFile}
-        />
-        <FieldError id="audio-file-error" message={fileError} />
-        <button type="submit" disabled={!file || Boolean(fileError) || uploading}>
-          Загрузить трек
-        </button>
-        <span className="upload-status" role="status">{uploading ? 'Загружаем…' : ''}</span>
-        <FieldError id="upload-error" message={submitError} />
-      </form>
-      <ol className="steps"><li>Загрузите аудио</li><li>Введите текст и тайминги</li><li>Получите MP4</li></ol>
+    <section>
+      <header className="page-heading">
+        <h1>Новый проект</h1>
+        <p>Загрузите трек, чтобы разметить текст по времени.</p>
+      </header>
+      <div className="upload-layout">
+        <form className="panel upload-panel" onSubmit={submit} aria-busy={uploading}>
+          <span className="audio-mark" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+          <h2 className="upload-label">Аудиофайл</h2>
+          <p className="muted" id="audio-file-help">MP3 или WAV · до 20 МиБ · 5–60 с</p>
+          <label className="file-picker">
+            <input
+              id="audio-file"
+              className="sr-only"
+              type="file"
+              accept=".mp3,.wav,audio/mpeg,audio/wav"
+              aria-invalid={Boolean(fileError)}
+              aria-describedby={fileError ? 'audio-file-help audio-file-error' : 'audio-file-help'}
+              disabled={uploading}
+              onChange={selectFile}
+            />
+            <span className={`button${file ? '' : ' button-primary'}`}>{file ? 'Заменить файл' : 'Выбрать файл'}</span>
+          </label>
+          {file && <p className="file-name" role="status">{file.name}</p>}
+          <FieldError id="audio-file-error" message={fileError} />
+          {file && (
+            <button className="button button-primary" type="submit" disabled={Boolean(fileError) || uploading}>
+              {uploading ? 'Загружаем…' : 'Загрузить трек'}
+            </button>
+          )}
+          <span className="sr-only" role="status">{uploading ? 'Загружаем аудио.' : ''}</span>
+          <FieldError id="upload-error" message={submitError} />
+        </form>
+        <figure className="media-frame">
+          <div className="brat-preview">после полуночи</div>
+          <figcaption><span>Пример кадра Brat</span><span className="timecode">9:16</span></figcaption>
+        </figure>
+      </div>
     </section>
   );
 }

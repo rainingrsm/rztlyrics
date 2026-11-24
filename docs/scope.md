@@ -17,7 +17,8 @@
 
 React + TypeScript (вместо нетипизированного JS из презентации), FastAPI + Python 3.12,
 SQLite + SQLAlchemy/Alembic, RQ/Redis, один Linux worker, FFmpeg + ASS, Docker Compose.
-Brat: чёрный текст на зелёном фоне; 1280×720, 30 fps, H.264/AAC, yuv420p, faststart.
+Brat — чёрный текст на зелёном фоне, вертикальный кадр 9:16 (720×1280),
+30 fps, H.264/AAC, yuv420p и faststart.
 Это выбранные настройки, а не обещание уже работающей реализации.
 
 MP3/WAV, не более 20 MiB, длительность 5-60 секунд. 1-100 непустых строк,

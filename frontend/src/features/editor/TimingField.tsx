@@ -44,6 +44,7 @@ export function TimingField({ id, label, valueMs, currentTimeMs, issue, onInput,
   return (
     <>
       <input
+        className="timecode"
         ref={inputRef}
         id={id}
         aria-label={`${label}, с`}
@@ -66,6 +67,7 @@ export function TimingField({ id, label, valueMs, currentTimeMs, issue, onInput,
       />
       <FieldError id={errorId} message={message} />
       <button
+        className="button button-small"
         type="button"
         aria-label={`Взять время плеера — ${label.toLowerCase()}`}
         disabled={currentTimeMs === null}

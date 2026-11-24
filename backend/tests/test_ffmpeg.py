@@ -90,7 +90,7 @@ def test_build_command_keeps_media_paths_and_lyrics_separate(tmp_path):
     command = ffmpeg.build_command(spec, audio, subtitles, output)
 
     assert command[0] == "ffmpeg"
-    assert command[command.index("-i") + 1] == "color=c=0x8ace00:s=1280x720:r=30"
+    assert command[command.index("-i") + 1] == "color=c=0x8ace00:s=720x1280:r=30"
     assert str(audio.resolve()) in command
     assert command[-1] == str(output.resolve())
     assert command[command.index("-t") + 1] == "5123ms"
