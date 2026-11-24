@@ -8,9 +8,11 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <header className="site-header">
-        <div className="site-header-inner">
-          <Link className="brand" to="/" aria-label="RZT Lyrics, главная">RZT <span>Lyrics</span></Link>
+      <header className="project-sidebar">
+        <div className="sidebar-inner">
+          <Link className="brand" to="/" aria-label="RZT Lyrics, главная">
+            <span className="brand-mark">RZT</span> <span className="brand-label">Lyrics</span>
+          </Link>
           <ol className="project-steps" aria-label="Этапы проекта">
             <li aria-current={stage === 'upload' ? 'step' : undefined}>Трек</li>
             <li aria-current={stage === 'editor' ? 'step' : undefined}>Тайминги</li>
