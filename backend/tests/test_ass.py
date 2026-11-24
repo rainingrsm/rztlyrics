@@ -23,10 +23,10 @@ def test_wrap_long_word_within_frame():
     lines = wrap_text(text, 10000, 48).splitlines()
     assert len(lines) > 1
     assert "".join(lines) == text
-    assert all(len(line) < 24 for line in lines)
+    assert all(len(line) <= 11 for line in lines)
 
 
-@pytest.mark.parametrize(("text", "width"), [("Ж", 1), ("строка\n" * 30, 500)])
+@pytest.mark.parametrize(("text", "width"), [("Ж", 1), ("строка\n" * 40, 500)])
 def test_wrap_reports_overflow(text, width):
     with pytest.raises(ValueError, match="не помещается"):
         wrap_text(text, width, 32)
@@ -100,8 +100,8 @@ def test_build_ass_header_and_style():
     assert rows[:5] == [
         "[Script Info]",
         "ScriptType: v4.00+",
-        "PlayResX: 1280",
-        "PlayResY: 720",
+        "PlayResX: 720",
+        "PlayResY: 1280",
         "WrapStyle: 2",
     ]
     index = rows.index("[V4+ Styles]")
@@ -137,7 +137,7 @@ def test_build_ass_adjacent_lines_and_pause():
 
 
 def test_build_ass_wraps_and_escapes_in_one_event():
-    word = "Ж" * 20
+    word = "Ж" * 10
     raw_text = word + " " + word + "\n" + r"{\b1} и \N"
     spec = RenderSpec("brat", 5000, (LyricLine("1", raw_text, 1000, 2500),))
     rows = build_ass(spec).splitlines()

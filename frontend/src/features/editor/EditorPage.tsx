@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../shared/api/client';
 import { getProject, saveLyrics } from '../../shared/api/projects';
@@ -45,16 +45,29 @@ function validationFocusId(field: string): string | undefined {
 export function EditorPage() {
   const { id } = useParams();
   return (
-    <section className="panel">
-      <p className="eyebrow">Шаг 2 · текст и тайминги</p>
-      <h1>Подготовка видео</h1>
+    <section>
       {id ? <ProjectEditor key={id} projectId={id} /> : (
         <>
-          <p role="alert">В адресе не указан проект.</p>
-          <Link to="/">На главную</Link>
+          <EditorHeading />
+          <div className="panel state-panel">
+            <p className="field-error" role="alert">В адресе не указан проект.</p>
+            <Link className="button" to="/">На главную</Link>
+          </div>
         </>
       )}
     </section>
+  );
+}
+
+function EditorHeading({ children }: { children?: ReactNode }) {
+  return (
+    <header className="page-heading heading-with-actions">
+      <div>
+        <h1>Тайминги</h1>
+        <p>Укажите, когда каждая строка появится в видео.</p>
+      </div>
+      {children}
+    </header>
   );
 }
 
@@ -115,12 +128,20 @@ function ProjectEditor({ projectId }: { projectId: string }) {
     if (id) document.getElementById(id)?.focus();
   }, [renderIssues]);
 
-  if (state.status === 'loading') return <p role="status">Загружаем проект…</p>;
-  if (state.status === 'error') {
+  if (state.status !== 'loaded') {
     return (
       <>
-        <p role="alert">{state.message}</p>
-        <Link to="/">На главную</Link>
+        <EditorHeading />
+        <div className="panel state-panel">
+          {state.status === 'loading' ? (
+            <p className="progress-label" role="status">Загружаем проект…</p>
+          ) : (
+            <>
+              <p className="field-error" role="alert">{state.message}</p>
+              <Link className="button" to="/">На главную</Link>
+            </>
+          )}
+        </div>
       </>
     );
   }
@@ -253,49 +274,68 @@ function ProjectEditor({ projectId }: { projectId: string }) {
 
   return (
     <fieldset className="editor-fields" ref={editorRef} disabled={isBusy}>
-      <div id="editor-audio" role="group" aria-label="Аудиодорожка" tabIndex={-1}
-        aria-describedby={audioError ? 'editor-audio-error' : undefined}>
-        <AudioPlayer audioUrl={state.project.audio_url} onTimeChange={setCurrentTimeMs} />
-        <FieldError id="editor-audio-error" message={audioError} />
-      </div>
-      {currentTimeMs !== null && <p className="muted">Позиция для разметки — {msToSeconds(currentTimeMs)} с</p>}
-      <label htmlFor="lyrics-input">Текст песни — каждая строка отдельно</label>
-      <textarea
-        id="lyrics-input"
-        rows={5}
-        value={state.lyricsInput}
-        aria-invalid={Boolean(lyricsMessage)}
-        aria-describedby={lyricsMessage ? 'lyrics-error' : undefined}
-        onChange={(event) => {
-          setLyricsError(undefined);
-          clearDraftFeedback();
-          setState({ ...state, lyricsInput: event.target.value });
-        }}
-      />
-      <FieldError id="lyrics-error" message={lyricsMessage} />
-      <div className="actions">
-        <button type="button" onClick={handleSplitLyrics}>Разбить на строки</button>
-        <button type="button" onClick={() => void handleSave()}>Сохранить</button>
-        <button type="button" onClick={() => void handleGenerate()}>Сгенерировать видео</button>
-      </div>
-      {operationFeedback?.status === 'saving' && <p role="status">Сохраняем черновик…</p>}
-      {operationFeedback?.status === 'saved' && <p role="status">Черновик сохранён.</p>}
-      {operationFeedback?.status === 'starting' && <p role="status">Сохраняем черновик и запускаем генерацию…</p>}
+      <EditorHeading>
+        <div className="actions">
+          <button className="button" type="button" onClick={() => void handleSave()}>Сохранить</button>
+          <button className="button button-primary" type="button" onClick={() => void handleGenerate()}>Создать видео</button>
+        </div>
+      </EditorHeading>
+      {operationFeedback?.status === 'saving' && <p className="editor-feedback progress-label" role="status">Сохраняем черновик…</p>}
+      {operationFeedback?.status === 'saved' && <p className="editor-feedback" role="status">Черновик сохранён.</p>}
+      {operationFeedback?.status === 'starting' && <p className="editor-feedback progress-label" role="status">Сохраняем черновик и запускаем генерацию…</p>}
       <FieldError id="editor-operation-error" message={operationFeedback?.status === 'error' ? operationFeedback.message : undefined} />
-      <TimingTable
-        lines={state.draft.lines}
-        durationMs={state.project.duration_ms}
-        currentTimeMs={currentTimeMs}
-        issues={renderIssues ?? []}
-        onTimingInput={() => {
-          clearDraftFeedback();
-          if (!state.dirty) setState({ ...state, dirty: true });
-        }}
-        onChange={(lines) => {
-          clearDraftFeedback();
-          setState({ ...state, draft: { ...state.draft, lines }, dirty: true });
-        }}
-      />
+      <div className="editor-layout">
+        <div className="panel audio-panel" id="editor-audio" role="group" aria-labelledby="audio-heading" tabIndex={-1}
+          aria-describedby={audioError ? 'editor-audio-error' : undefined}>
+          <h2 id="audio-heading">Аудиодорожка</h2>
+          <AudioPlayer audioUrl={state.project.audio_url} onTimeChange={setCurrentTimeMs} />
+          {(currentTimeMs !== null || state.project.duration_ms !== null) && (
+            <div className="audio-time timecode">
+              {currentTimeMs !== null && <span>Позиция {msToSeconds(currentTimeMs)} с</span>}
+              {state.project.duration_ms !== null && <span>Длина {msToSeconds(state.project.duration_ms)} с</span>}
+            </div>
+          )}
+          <FieldError id="editor-audio-error" message={audioError} />
+        </div>
+        <div className="editor-body">
+          <div className="panel lyrics-panel">
+            <div className="panel-heading">
+              <label htmlFor="lyrics-input">Текст песни</label>
+              <button className="button" type="button" onClick={handleSplitLyrics}>Разбить на строки</button>
+            </div>
+            <p className="muted lyrics-help" id="lyrics-help">Каждая строка текста получит свой интервал.</p>
+            <textarea
+              id="lyrics-input"
+              rows={4}
+              value={state.lyricsInput}
+              aria-invalid={Boolean(lyricsMessage)}
+              aria-describedby={lyricsMessage ? 'lyrics-help lyrics-error' : 'lyrics-help'}
+              onChange={(event) => {
+                setLyricsError(undefined);
+                clearDraftFeedback();
+                setState({ ...state, lyricsInput: event.target.value });
+              }}
+            />
+            <FieldError id="lyrics-error" message={lyricsMessage} />
+          </div>
+          <div className="panel timing-panel">
+            <TimingTable
+              lines={state.draft.lines}
+              durationMs={state.project.duration_ms}
+              currentTimeMs={currentTimeMs}
+              issues={renderIssues ?? []}
+              onTimingInput={() => {
+                clearDraftFeedback();
+                if (!state.dirty) setState({ ...state, dirty: true });
+              }}
+              onChange={(lines) => {
+                clearDraftFeedback();
+                setState({ ...state, draft: { ...state.draft, lines }, dirty: true });
+              }}
+            />
+          </div>
+        </div>
+      </div>
     </fieldset>
   );
 }

@@ -17,6 +17,24 @@ type ResultState =
   | { kind: 'job'; job: RenderJob }
   | { kind: 'error'; message: string; canRetry: boolean };
 
+function ResultStatus({ title, message, pending = false, error = false, onRetry }: {
+  title: string;
+  message?: string;
+  pending?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="panel result-status">
+      <div role={error ? 'alert' : 'status'}>
+        <h2 className={pending ? 'progress-label' : undefined}>{title}</h2>
+        {message && <p className={error ? 'field-error' : 'muted'}>{message}</p>}
+      </div>
+      {onRetry && <button className="button" type="button" onClick={onRetry}>Обновить состояние</button>}
+    </div>
+  );
+}
+
 function getNavigationJobId(state: unknown, projectId: string): string | null {
   if (state && typeof state === 'object' && 'projectId' in state && state.projectId === projectId
     && 'jobId' in state && typeof state.jobId === 'string' && state.jobId.trim()) {
@@ -70,37 +88,33 @@ function ProjectResult({ projectId, initialJobId }: { projectId: string; initial
     setAttempt((previous) => previous + 1);
   }
 
-  if (state.kind === 'loading') return <p role="status">Загружаем состояние задачи…</p>;
-  if (state.kind === 'empty') return <p role="status">Откройте редактор, чтобы начать генерацию.</p>;
+  if (state.kind === 'loading') return <ResultStatus title="Загружаем состояние задачи" pending />;
+  if (state.kind === 'empty') return <ResultStatus title="Видео ещё не создано" message="Запустите генерацию в редакторе." />;
   if (state.kind === 'error') {
     return (
-      <>
-        <p className="field-error" role="alert">{state.message}</p>
-        {state.canRetry && <button type="button" onClick={retry}>Обновить состояние</button>}
-      </>
+      <ResultStatus title="Не удалось загрузить состояние" message={state.message} error
+        onRetry={state.canRetry ? retry : undefined} />
     );
   }
 
   const { job } = state;
   switch (job.status) {
     case 'queued':
-      return <p role="status">Видео ждёт своей очереди.</p>;
+      return <ResultStatus title="Видео в очереди" message="Статус обновится автоматически." pending />;
     case 'running':
-      return <p role="status">Генерируем видео…</p>;
+      return <ResultStatus title="Генерируем видео" message="Плеер появится здесь, когда видео будет готово." pending />;
     case 'failed':
       return (
-        <>
-          <p className="field-error" role="alert">{job.error?.message ?? 'Не удалось сгенерировать видео.'}</p>
-          <p>Вернитесь в редактор, чтобы проверить черновик и запустить генерацию снова.</p>
-        </>
+        <ResultStatus title="Не удалось создать видео"
+          message={job.error?.message ?? 'Вернитесь к таймингам и запустите генерацию снова.'} error />
       );
     case 'succeeded':
       // TODO(B2): Compare revisions once the job API includes the snapshot revision.
       return job.video_url
         ? <VideoResult videoUrl={job.video_url} jobId={job.id} />
-        : <p className="field-error" role="alert">Видео готово, но сервер не вернул ссылку.</p>;
+        : <ResultStatus title="Видео недоступно" message="Сервер не вернул ссылку на MP4." error />;
     default:
-      return <p className="field-error" role="alert">Сервер вернул неизвестное состояние задачи.</p>;
+      return <ResultStatus title="Неизвестное состояние задачи" error />;
   }
 }
 
@@ -109,15 +123,14 @@ export function ResultPage() {
   const { state: navigationState } = useLocation();
   const jobId = id ? getNavigationJobId(navigationState, id) : null;
   return (
-    <section className="panel">
-      <p className="eyebrow">Шаг 3 · результат</p>
-      <h1>Результат генерации</h1>
-      {id && <ProjectResult key={`${id}:${jobId ?? ''}`} projectId={id} initialJobId={jobId} />}
-      <div className="actions">
+    <section>
+      <header className="page-heading heading-with-actions">
+        <h1>Результат</h1>
         {id
-          ? <Link to={`/projects/${encodeURIComponent(id)}/edit`}>Вернуться к редактору</Link>
-          : <Link to="/">На главную</Link>}
-      </div>
+          ? <Link className="button" to={`/projects/${encodeURIComponent(id)}/edit`}>К таймингам</Link>
+          : <Link className="button" to="/">На главную</Link>}
+      </header>
+      {id && <ProjectResult key={`${id}:${jobId ?? ''}`} projectId={id} initialJobId={jobId} />}
     </section>
   );
 }

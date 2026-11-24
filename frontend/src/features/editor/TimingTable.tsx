@@ -19,7 +19,7 @@ export function TimingTable({ lines, durationMs, currentTimeMs, issues, onTiming
     <div className="table-scroll" role="region" aria-labelledby="timing-table-title" tabIndex={0}>
       <table className="timing-table">
         <caption id="timing-table-title">
-          Ручная разметка{durationMs !== null && <span className="muted"> · аудио {msToSeconds(durationMs)} с</span>}
+          Время строк{durationMs !== null && <span className="muted"> · аудио {msToSeconds(durationMs)} с</span>}
         </caption>
         <thead>
           <tr><th scope="col">Строка</th><th scope="col">Начало, с</th><th scope="col">Конец, с</th><th scope="col">Действия</th></tr>
@@ -71,6 +71,7 @@ export function TimingTable({ lines, durationMs, currentTimeMs, issues, onTiming
                 </td>
                 <td>
                   <button
+                    className="button button-small button-quiet"
                     type="button"
                     aria-label={`Удалить строку ${rowNumber}`}
                     onClick={() => onChange(lines.filter(({ id }) => id !== line.id))}

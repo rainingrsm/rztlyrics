@@ -16,7 +16,7 @@ const router = createBrowserRouter([{
     { index: true, element: <UploadPage /> },
     { path: 'projects/:id/edit', element: <EditorPage /> },
     { path: 'projects/:id/result', element: <ResultPage /> },
-    { path: '*', element: <section className="panel"><h1>Страница не найдена</h1><Link to="/">На главную</Link></section> },
+    { path: '*', element: <section className="page-heading"><h1>Страница не найдена</h1><Link className="button" to="/">На главную</Link></section> },
   ],
 }]);
 
